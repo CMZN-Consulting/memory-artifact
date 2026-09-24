@@ -10,7 +10,7 @@ theorem lookup_one_capped_return (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (
     ((toolStep Γ m c).storePrivate.length = m.storePrivate.length + 2) ∧
     (∀ ret ∈ (toolStep Γ m c).storePrivate, ret ∉ m.storePrivate → ret.kind.isReturn = true →
       ret.data.length ≤ Γ.p.cap ∧ ret.pointers.length ≤ Γ.p.cap) := by
-  obtain ⟨call, ret, cur, hts, hk, hnew, hseq, hdata, hrk, hrs, hrw, hrp, hrd, hck, hcs, hcd⟩ :=
+  obtain ⟨call, ret, cur, hts, hk, hnew, hseq, hdata, hptr, hrk, hrs, hrw, hrp, hrd, hck, hcs, hcd, hwf⟩ :=
     LookupAux.lookup_shape Γ m h c s q hc hv
   have hcap := Γ.p.hcap
   have hpage : Γ.p.page = Γ.p.cap - 1 := rfl
@@ -35,11 +35,11 @@ theorem lookup_return_exact (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (c : T
     ∃ call ∈ (toolStep Γ m c).hippocampus, ∃ ret ∈ (toolStep Γ m c).storePrivate,
       call ∉ m.hippocampus ∧ ret ∉ m.storePrivate ∧ call.kind = .call ∧ ret.writer = Γ.toolName c.tool ∧
       ret.pointers.head? = some call.hash ∧
-      ret.pointers.tail = ((Γ.lookupQuery m s q Γ.policy).map (·.hash)).take (Γ.p.cap - 1) ∧
-      ret.data = ret.seq :: (Γ.lookupStream m s q Γ.policy).take Γ.p.page ∧
-      ret.kind = (if (Γ.lookupStream m s q Γ.policy).isEmpty then .ret .nothing
-        else if Γ.p.page < (Γ.lookupStream m s q Γ.policy).length then .ret .span else .ret .infos) := by
-  obtain ⟨call, ret, cur, hts, hk, hnew, hseq, hdata, hrk, hrs, hrw, hrp, hrd, hck, hcs, hcd⟩ :=
+      ret.pointers.tail = ((Γ.lookupQuery m s q m.currentPolicy).map (·.hash)).take (Γ.p.cap - 1) ∧
+      ret.data = ret.seq :: (Γ.lookupStream m s q m.currentPolicy).take Γ.p.page ∧
+      ret.kind = (if (Γ.lookupStream m s q m.currentPolicy).isEmpty then .ret .nothing
+        else if Γ.p.page < (Γ.lookupStream m s q m.currentPolicy).length then .ret .span else .ret .infos) := by
+  obtain ⟨call, ret, cur, hts, hk, hnew, hseq, hdata, hptr, hrk, hrs, hrw, hrp, hrd, hck, hcs, hcd, hwf⟩ :=
     LookupAux.lookup_shape Γ m h c s q hc hv
   rw [hts]
   refine ⟨call, by simp [Memory.push], ret, by simp [Memory.push], ?_, ?_, hk, hrw, by simp [hrp], by simp [hrp], hrd, hrk⟩
@@ -55,13 +55,13 @@ theorem ptr_lookup_serves (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (c : Too
     ∃ ret ∈ (toolStep Γ m c).storePrivate, ret ∉ m.storePrivate ∧ ret.pointers.tail = [x.hash] ∧
       ret.data.tail = x.canon.take Γ.p.page := by
   obtain ⟨call, hcall, ret, hret, -, hnot, -, -, -, htl, hd, -⟩ := lookup_return_exact Γ m h c s (.ptr x.hash) hc hv
-  have hq : Γ.lookupQuery m s (.ptr x.hash) Γ.policy = [x] := floor_not_a_loss Γ m h s x hx
+  have hq : Γ.lookupQuery m s (.ptr x.hash) m.currentPolicy = [x] := floor_not_a_loss Γ m h s x hx
   have hcap := Γ.p.hcap
   refine ⟨ret, hret, hnot, ?_, ?_⟩
   · rw [htl, hq]
     obtain ⟨n, hn⟩ : ∃ n, Γ.p.cap - 1 = n + 1 := ⟨Γ.p.cap - 2, by omega⟩
     simp [hn]
-  · have hs : Γ.lookupStream m s (.ptr x.hash) Γ.policy = x.canon := by
+  · have hs : Γ.lookupStream m s (.ptr x.hash) m.currentPolicy = x.canon := by
       simp [Ctx.lookupStream, canonAll, show lookupPtr m s x.hash = [x] from hq]
     rw [hd, hs]
     rfl
@@ -75,10 +75,10 @@ theorem span_cursor_is_serveN (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (c :
     (hxt : x.hash = sp.target) :
     ∃ cur ∈ (toolStep Γ m c).storePrivate, cur ∉ m.storePrivate ∧ cur.kind = .cursor ∧
       cur.data = cur.seq :: Cursor.toData (Cursor.serveN Γ.p.page ⟨sp.target, sp.start, (Span.slice x sp).length⟩ 1) := by
-  obtain ⟨call, ret, cur, hts, hk, hnew, hseq, hdata', hrk, hrs, hrw, hrp, hrd, hck, hcs, hcd⟩ :=
+  obtain ⟨call, ret, cur, hts, hk, hnew, hseq, hdata', hptr, hrk, hrs, hrw, hrp, hrd, hck, hcs, hcd, hwf⟩ :=
     LookupAux.lookup_shape Γ m h c s (.span sp) hc hv
   have hq : lookupPtr m s sp.target = [x] := hxt ▸ floor_not_a_loss Γ m h s x hx
-  have hs : Γ.lookupStream m s (.span sp) Γ.policy = Span.slice x sp := by
+  have hs : Γ.lookupStream m s (.span sp) m.currentPolicy = Span.slice x sp := by
     simp [Ctx.lookupStream, hq]
   rw [hts]
   refine ⟨cur, by simp [Memory.push], ?_, hck, ?_⟩
@@ -87,18 +87,33 @@ theorem span_cursor_is_serveN (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (c :
   · rw [hcd, hs]
     simp [LookupAux.spanOf, Cursor.serveN, Cursor.advance, Cursor.toData]
 
-/-- T8, what a lookup by words records: the call carries, after its arrival number, the tool's code, the tag 0, the policy's key
-and the words, so that the policy and the words are recoverable from the log. -/
+/-- T8, what a lookup by words records: the call carries, after its arrival number, the tool's code, the tag 0 and the words, and its
+derivation points to the policy the lookup ran under, the latest policy of the log (design record section 18g), so that the policy
+and the words are recoverable from the log and the lookup replays under its own epoch. -/
 theorem recall_records_policy (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (c : ToolCall) (s : Scope) (w : Data)
     (hc : c.lookupOf = some (s, .words w)) (hv : c.Valid Γ m) :
     ∃ call ∈ (toolStep Γ m c).hippocampus, call ∉ m.hippocampus ∧ call.kind = .call ∧
-      call.data = call.seq :: c.tool.code :: 0 :: (Γ.policy.key ++ w) := by
-  obtain ⟨call, ret, cur, hts, hk, hnew, hseq, hdata, -⟩ := LookupAux.lookup_shape Γ m h c s (.words w) hc hv
-  rw [hts]
-  refine ⟨call, by simp [Memory.push], ?_, hk, ?_⟩
+      call.data = call.seq :: c.tool.code :: 0 :: w ∧ (∀ pol, m.policyHead = some pol → pol.hash ∈ call.pointers) ∧
+      (toolStep Γ m c).policyOfCall call = m.currentPolicy := by
+  obtain ⟨call, ret, cur, hts, hk, hnew, hseq, hdata, ⟨decl, hd, hptr⟩, -, -, -, -, -, -, -, -, hwf⟩ :=
+    LookupAux.lookup_shape Γ m h c s (.words w) hc hv
+  have hpolicy : c.usesPolicy = true := by
+    rcases LookupAux.lookupOf_cases hc with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> rfl
+  have hnamed : c.named = [] := by
+    rcases LookupAux.lookupOf_cases hc with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> rfl
+  rw [hpolicy, hnamed] at hptr
+  simp only [if_true] at hptr
+  rw [hts] at hwf ⊢
+  refine ⟨call, by simp [Memory.push], ?_, hk, ?_, ?_, ?_⟩
   · intro hmem
     exact hnew (List.mem_map.2 ⟨call, by simp [Memory.all, hmem], rfl⟩)
   · rw [hdata]
     rcases LookupAux.lookupOf_cases hc with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> rfl
+  · intro pol hpol
+    rw [hptr, hpol]
+    simp
+  · refine LookupAux.policyOfCall_eq m _ hwf.appendOnly.distinct ?_ call c.tool decl hd hptr
+    intro x hx
+    exact (mem_all_push _ _ _ _).2 (Or.inl ((mem_all_push _ _ _ _).2 (Or.inl ((mem_all_push _ _ _ _).2 (Or.inl hx)))))
 
 end MemoryArtifact

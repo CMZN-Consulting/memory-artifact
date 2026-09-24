@@ -29,7 +29,7 @@ def Kind.code : Kind → Nat
   | .root => 6 | .group => 7 | .page => 8 | .dayRecord => 9 | .cursor => 10 | .notice => 11 | .answer => 12
   | .framing => 13 | .heard => 14 | .tool => 15
   | .question => 16 | .handOver => 17 | .stop => 18 | .call => 19 | .recipe => 26 | .given => 27 | .outcome => 28
-  | .task => 29 | .say => 36 | .filed => 37
+  | .task => 29 | .say => 36 | .filed => 37 | .policy => 44
   | .edge .same => 20 | .edge .continues => 21 | .edge .corrects => 22 | .edge .contradicts => 23
   | .edge .supersedes => 24 | .edge .cites => 25
   | .ret .infos => 30 | .ret .span => 31 | .ret .nothing => 32 | .ret .refusal => 33 | .ret .digest => 34

@@ -4,14 +4,22 @@ import MemoryArtifact.Lemmas.Chunks
 /-!
 # Lookup: by a pointer, a span or words; the words side is a lexical side and a ranker, fused
 
-Design record sections 5, 16 and 18b. A lookup by words is served by two sides. The lexical side is concrete: the infos of
-the scope whose data holds every word. The vector side is the ranker, an opaque pure function of (log, words, policy), of
+Design record sections 5, 16, 18b and 18g. A lookup by words is served by two sides. The lexical side is concrete: the infos
+of the scope whose data holds every word. The vector side is the ranker, an opaque pure function of (log, words, policy), of
 which nothing is assumed except what a theorem names. Their ranks are fused: the lexical candidates first, then what only
 the vector side found. A lookup by a pointer or a span is concrete throughout: no ranker is consulted.
 
-The index the vector side reads is derived from the log and is never authoritative (invariant 12). It is not an object of
-this model: `Memory.derivedIndex` is a function of the log, so the invariant holds by that definition, and the theorems
-below say so under that name rather than passing it off as a property that could fail.
+The policy is not a constant of the context: it is read from the log. A policy is an info of the shared store, kind policy,
+whose data is the policy's key followed by the reason it replaced the one before it, and which points to that one. The first
+policy is epoch 0 and each later one points back, so the chain of policies is the history of the index and the log holds it.
+The policy in force is the latest one (`Memory.currentPolicy`); a lookup by words runs under it and its call points to the
+policy info, so that the lookup replays under its own epoch (`Memory.policyOfCall`). Where the log holds no policy, or the
+latest one does not decode, a lookup by words has its lexical side alone (`lookupWordsUnder`).
+
+The index the vector side reads is derived from the log and is never authoritative (invariant 12): one index for each policy,
+a function of the log and of that policy, rebuilt whenever wanted and never destroyed by a later epoch. It is not an object of
+this model: `Memory.derivedIndex` is a function of the log and the policy, so the invariant holds by that definition, and the
+theorems below say so under that name rather than passing it off as a property that could fail.
 -/
 
 namespace MemoryArtifact
@@ -42,29 +50,56 @@ def fuse (lex vec : List Info) : List Info := lex ++ vec.filter (fun x => !lex.c
 def lookupWords (Γ : Ctx) (m : Memory) (s : Scope) (words : Data) (p : Policy) : List Info :=
   fuse (m.lexical s words) (Memory.vectorSide Γ m s words p)
 
+/-- Lookup by words under the policy a lookup runs under, if it has one: with a policy, the fusion of the two sides; with none
+(the log holds no policy, or the policy's data does not decode), the lexical side alone, and no ranker is consulted. -/
+def lookupWordsUnder (Γ : Ctx) (m : Memory) (s : Scope) (words : Data) : Option Policy → List Info
+  | none => m.lexical s words
+  | some p => lookupWords Γ m s words p
+
 /-- Lookup by a pointer (52) over a scope: the info the pointer names, if the scope holds it. -/
 def lookupPtr (m : Memory) (s : Scope) (p : Pointer) : List Info := (m.scopeInfos s).filter (fun x => x.hash == p)
 
-/-- What a query names: by words the fusion, by a pointer or a span the info named (a span names the info it is a part of). -/
-def Ctx.lookupQuery (Γ : Ctx) (m : Memory) (s : Scope) (q : Query) (p : Policy) : List Info :=
+/-- What a query names: by words the fusion, by a pointer or a span the info named (a span names the info it is a part of). `o`
+is the policy the lookup runs under (`Memory.currentPolicy` for a call, `Memory.policyOfCall` for a replay); only a lookup by
+words reads it. -/
+def Ctx.lookupQuery (Γ : Ctx) (m : Memory) (s : Scope) (q : Query) (o : Option Policy) : List Info :=
   match q with
-  | .words w => lookupWords Γ m s w p
+  | .words w => lookupWordsUnder Γ m s w o
   | .ptr h => lookupPtr m s h
   | .span sp => lookupPtr m s sp.target
 
 /-- The stream of tokens a lookup serves, before it is cut into pages: the canonical forms of the infos named, or, for a span,
 the part of the canonical form of its info that the span names. -/
-def Ctx.lookupStream (Γ : Ctx) (m : Memory) (s : Scope) (q : Query) (p : Policy) : Data :=
+def Ctx.lookupStream (Γ : Ctx) (m : Memory) (s : Scope) (q : Query) (o : Option Policy) : Data :=
   match q with
-  | .words w => canonAll (lookupWords Γ m s w p)
+  | .words w => canonAll (lookupWordsUnder Γ m s w o)
   | .ptr h => canonAll (lookupPtr m s h)
   | .span sp => ((lookupPtr m s sp.target).head?.map (fun x => Span.slice x sp)).getD []
 
-/-- What a policy is decoded from: the words of a lookup by words are recorded after the policy's key (its three parts). -/
+/-- What a policy is decoded from: the data of a policy info is the policy's key (its three parts: the lexical index version, the
+embedder's file hash, the anchor hashes) and after it the reason the policy replaced the one before it. Decoding gives the
+policy and that reason, and none when the data is not a key followed by anything. -/
 def Policy.decode : Data → Option (Policy × Data)
   | lv :: eh :: n :: rest =>
     if n ≤ rest.length then some (⟨lv, eh, rest.take n⟩, rest.drop n) else none
   | _ => none
+
+/-- (design record section 18g) The latest policy info of the log: the last info of kind policy in the shared store, the newest
+epoch (a policy is written only there, `Kind.allowedIn`). None when the log holds no policy. -/
+def Memory.policyHead (m : Memory) : Option Info :=
+  (m.storeShared.filter (fun i => decide (i.kind = .policy))).getLast?
+
+/-- The policy in force: the latest policy info of the log (`Memory.policyHead`), decoded. None when the log holds no policy or the
+latest one's data does not decode. -/
+def Memory.currentPolicy (m : Memory) : Option Policy :=
+  m.policyHead.bind (fun i => (Policy.decode i.data).map (·.1))
+
+/-- The policy a recorded lookup ran under, so that it replays under its own epoch and not under the one in force: the first
+policy info its derivation points to, decoded. None when it points to none (a lookup by a pointer or a span runs under no
+policy) or that info's data does not decode. -/
+def Memory.policyOfCall (m : Memory) (call : Info) : Option Policy :=
+  ((call.pointers.filterMap m.resolve).find? (fun j => decide (j.kind = .policy))).bind
+    (fun j => (Policy.decode j.data).map (·.1))
 
 /-- What the writer would want by these words: the meaning, which no theorem about the log can see. A parameter. -/
 abbrev Wanted : Type := Data → Info → Prop
@@ -76,8 +111,8 @@ writer's meaning and is not formalised. -/
 def Coverage (Γ : Ctx) (W : Wanted) (m : Memory) (p : Policy) : Prop :=
   ∀ (s : Scope) (words : Data), ∀ x ∈ m.scopeInfos s, W words x → x.holdsWords words = false → x ∈ Γ.ranker m words p
 
-/-- The vectors the ranker's index holds: for each info of the log, its pointer and its vector under the policy. A function of
-the log alone (invariant 12: derived, rebuildable, never authoritative). -/
+/-- The vectors the ranker's index holds under a policy, one index for each epoch: for each info of the log, its pointer and its
+vector under the policy. A function of the log and the policy (invariant 12: derived, rebuildable, never authoritative). -/
 def Memory.derivedIndex (Γ : Ctx) (m : Memory) (p : Policy) : List (Pointer × Data) :=
   m.all.map (fun i => (i.hash, Γ.embed i p))
 
@@ -136,14 +171,21 @@ theorem lookupPtr_subset {m : Memory} {s : Scope} {p : Pointer} {x : Info} (h : 
     x ∈ m.scopeInfos s :=
   (List.mem_filter.mp h).1
 
-/-- Whatever the query, a lookup returns infos of the scope only. -/
-theorem Ctx.lookupQuery_subset (Γ : Ctx) (m : Memory) (s : Scope) (q : Query) (p : Policy) :
-    ∀ x ∈ Γ.lookupQuery m s q p, x ∈ m.scopeInfos s := by
+/-- A lookup by words under a policy, or under none, returns infos of the scope only. -/
+theorem lookupWordsUnder_subset {Γ : Ctx} {m : Memory} {s : Scope} {w : Data} {o : Option Policy} {x : Info}
+    (h : x ∈ lookupWordsUnder Γ m s w o) : x ∈ m.scopeInfos s := by
+  cases o with
+  | none => exact Memory.lexical_subset h
+  | some p => exact lookupWords_subset h
+
+/-- Whatever the query and the policy, a lookup returns infos of the scope only. -/
+theorem Ctx.lookupQuery_subset (Γ : Ctx) (m : Memory) (s : Scope) (q : Query) (o : Option Policy) :
+    ∀ x ∈ Γ.lookupQuery m s q o, x ∈ m.scopeInfos s := by
   intro x hx
   cases q with
   | ptr h => exact lookupPtr_subset hx
   | span sp => exact lookupPtr_subset hx
-  | words w => exact lookupWords_subset hx
+  | words w => exact lookupWordsUnder_subset hx
 
 /-- In a list whose hashes are all different, an info is determined by its hash. -/
 theorem eq_of_hash_eq_of_nodup {l : List Info} (hl : (l.map (·.hash)).Nodup) {x y : Info} (hx : x ∈ l) (hy : y ∈ l)
@@ -217,8 +259,8 @@ theorem fused_return_paged (Γ : Ctx) (m : Memory) (s : Scope) (words : Data) (p
     exact List.prefix_take_iff.mpr ⟨hpre, hle⟩
 
 /-- T8, the policy is identified by its three parts: the key (lexical version, embedder hash, anchor hashes) determines the
-policy, and the words recorded after it are recoverable, so a call that records the key and the words names exactly the
-lookup it made. -/
+policy, and the reason recorded after it in a policy info is recoverable, so a call that records the words and points to a
+policy info names exactly the lookup it made. -/
 theorem policy_key_injective (p p' : Policy) (h : p.key = p'.key) : p = p' := by
   obtain ⟨lv, eh, an⟩ := p
   obtain ⟨lv', eh', an'⟩ := p'
@@ -227,7 +269,7 @@ theorem policy_key_injective (p p' : Policy) (h : p.key = p'.key) : p = p' := by
   subst h1 h2 h4
   rfl
 
-/-- T8: what a call records is decoded back. -/
+/-- T8: what a policy info records, its key followed by the reason it replaced the one before, is decoded back. -/
 theorem policy_decode_key (p : Policy) (w : Data) : Policy.decode (p.key ++ w) = some (p, w) := by
   obtain ⟨lv, eh, an⟩ := p
   have hle : an.length ≤ (an ++ w).length := by simp
@@ -329,8 +371,8 @@ theorem derivedIndex_pointers_in_log (Γ : Ctx) (m : Memory) (p : Policy) :
   obtain ⟨i, hi, rfl⟩ := List.mem_map.mp he
   exact List.mem_map.mpr ⟨i, hi, rfl⟩
 
-/-- Invariant 12, by construction: the index is a function of the log's infos alone, so it is rebuilt from the log at any time,
-and every info of the log has its entry. -/
+/-- Invariant 12, by construction: the index of a policy is a function of the log's infos and that policy alone, so it is rebuilt
+from the log at any time, and every info of the log has its entry. -/
 theorem derivedIndex_rebuildable (Γ : Ctx) (m m' : Memory) (p : Policy) (h : m.all = m'.all) :
     m.derivedIndex Γ p = m'.derivedIndex Γ p ∧ ∀ x ∈ m.all, (x.hash, Γ.embed x p) ∈ m.derivedIndex Γ p := by
   refine ⟨by unfold Memory.derivedIndex; rw [h], fun x hx => ?_⟩

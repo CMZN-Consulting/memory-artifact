@@ -93,6 +93,10 @@ inductive Kind where
   | say
   /-- (62) an info filed by the individual into the shared part of the store, for others to reach -/
   | filed
+  /-- (design record section 18g) a ranker policy: an info of the shared store, written by the desk, holding the lexical index
+  version, the embedder's file hash, the anchor hashes and the reason it replaced the policy before it; it points to that one
+  (the first, epoch 0, points to none), so the chain is the index's history -/
+  | policy
   deriving DecidableEq, Repr
 
 /-- (13) Envelope: the name of the writer, the day id of the writing, and a kind. -/
@@ -335,9 +339,11 @@ def ToolId.code : ToolId → Nat
 /-- (63) Recipe: a name from a closed list, naming steps that run outside every context. A recipe is its number. -/
 abbrev Recipe : Type := Nat
 
-/-- (design record sections 16 and 18b) The policy of a lookup by words: the version of the lexical index, the hash of the
+/-- (design record sections 16, 18b and 18g) The policy of a lookup by words: the version of the lexical index, the hash of the
 pinned embedder's file, and the anchor set, a fixed list of shared-store info hashes against which the embedding side
-represents every info. The anchor set is data in the policy, nothing more. -/
+represents every info. The anchor set is data in the policy, nothing more. A policy is an info of the shared store (`Kind.policy`),
+the data of which is `Policy.key` and the reason it replaced the policy before it; its one pointer names that policy, so the
+policies of a log are a chain, epoch 0 first (`Memory.policyHead`, `Memory.currentPolicy`). -/
 structure Policy where
   lexVersion : Nat
   embedderHash : Hash
@@ -372,7 +378,7 @@ served stream is paged by this, so that every page fits a return (invariant 7). 
 def Params.page (p : Params) : Nat := p.cap - 1
 
 /-- The context of a model of the memory: the hash function (3), the name of the model (4), the name of the harness
-that writes roots and groups, the names of the tools, the knobs, and the ranker with its policy. -/
+that writes roots and groups, the names of the tools, the knobs, and the ranker and the embedder (the policy in force is read from the log: the latest info of kind policy). -/
 structure Ctx where
   H : Hasher
   self : Name
@@ -391,7 +397,5 @@ structure Ctx where
   embed : Info → Policy → Data
   /-- the ranker of lookups by words -/
   ranker : Ranker
-  /-- the policy in force -/
-  policy : Policy
 
 end MemoryArtifact

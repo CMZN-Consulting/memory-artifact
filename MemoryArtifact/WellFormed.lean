@@ -25,6 +25,8 @@ inductive Arity where
   | exactlyOne
   /-- a derived info that is not an edge: at least one pointer -/
   | atLeastOne
+  /-- a ranker policy (section 18g): at most one pointer, to the policy before it -/
+  | atMostOne
   /-- an edge (24): exactly two pointers -/
   | exactlyTwo
   /-- a kind whose row says "none, or ...", or that carries a pointer only on a day of work: any number -/
@@ -41,6 +43,7 @@ def Kind.arity : Kind → Arity
   | .edge _ => .exactlyTwo
   | .keep => .exactlyOne
   | .heard => .exactlyOne
+  | .policy => .atMostOne
   | .aside | .correction | .consolidation | .proposal | .group | .dayRecord | .cursor | .answer | .call
   | .recipe | .given | .outcome | .filed => .atLeastOne
   | .ret .infos | .ret .span | .ret .digest | .ret .nothing | .ret .acknowledgement => .atLeastOne
@@ -56,7 +59,7 @@ def Kind.harnessOnly : Kind → Bool
 never have the same content, and so the same hash (ruling 10: the hash covers data and envelope, not the arrival number).
 Not numbered: a night (one a day), a root and a page (one a day), and what the desk and the readers place. -/
 def Kind.numbered : Kind → Bool
-  | .night | .root | .page | .notice | .framing | .shelf _ | .answer | .task | .say | .heard | .tool => false
+  | .night | .root | .page | .notice | .framing | .shelf _ | .answer | .task | .say | .heard | .tool | .policy => false
   | _ => true
 
 /-- Whether a kind counts as carrying a task pointer on a day of work (66): every experience of the day and every filed
@@ -73,7 +76,8 @@ given, the outcome): a choice, listed in the README (ruling 1 says "every kind b
 call are this model's own, and were they entries every call would be a head and knowledge). Entries are what threads
 and heads run over. -/
 def Kind.isEntryKind : Kind → Bool
-  | .edge _ | .keep | .root | .group | .page | .dayRecord | .ret _ | .cursor | .call | .recipe | .given | .outcome => false
+  | .edge _ | .keep | .root | .group | .page | .dayRecord | .ret _ | .cursor | .call | .recipe | .given | .outcome
+  | .policy => false
   | _ => true
 
 /-- Whether `n` pointers satisfy an arity. -/
@@ -82,6 +86,7 @@ def Arity.ok : Arity → Nat → Bool
   | .exactlyOne, n => n == 1
   | .atLeastOne, n => decide (1 ≤ n)
   | .exactlyTwo, n => n == 2
+  | .atMostOne, n => decide (n ≤ 1)
   | .any, _ => true
 
 /-- Which kinds each of the four logs may hold: the rows of sections 13 and 14, log by log, with the additions ruled by the
@@ -96,7 +101,7 @@ def Kind.allowedIn : LogId → Kind → Bool
   | .storePrivate, .ret _ | .storePrivate, .cursor | .storePrivate, .notice | .storePrivate, .answer
   | .storePrivate, .framing | .storePrivate, .edge _ | .storePrivate, .task => true
   | .storeShared, .shelf _ | .storeShared, .heard | .storeShared, .framing | .storeShared, .notice
-  | .storeShared, .edge .supersedes | .storeShared, .say | .storeShared, .filed => true
+  | .storeShared, .edge .supersedes | .storeShared, .say | .storeShared, .filed | .storeShared, .policy => true
   | .toolkit, .tool | .toolkit, .edge .supersedes => true
   | _, _ => false
 
@@ -134,6 +139,7 @@ def Kind.targetOk : Kind → Kind → Bool
   | .heard, t => t == .say
   | .say, _ => false
   | .tool, t => t == .tool
+  | .policy, t => t == .policy
   | .task, t => (match t with | .shelf _ => true | _ => false)
   | .filed, _ => true
 

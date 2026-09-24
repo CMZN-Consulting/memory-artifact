@@ -600,16 +600,21 @@ theorem considerTraces_some {Γ : Ctx} (call : Hash) : ∀ (ts : List Pointer) (
 
 /-! ## Each tool, on a recorded call -/
 
-/-- What a lookup names is an info of its scope, and so of the memory. -/
-theorem lookupQuery_mem (Γ : Ctx) (m : Memory) (s : Scope) (q : Query) (p : Policy) :
-    ∀ x ∈ Γ.lookupQuery m s q p, x ∈ m.all := by
+/-- What a lookup names is an info of its scope, and so of the memory, whatever policy it runs under. -/
+theorem lookupQuery_mem (Γ : Ctx) (m : Memory) (s : Scope) (q : Query) (o : Option Policy) :
+    ∀ x ∈ Γ.lookupQuery m s q o, x ∈ m.all := by
   intro x hx
   have hs : x ∈ m.scopeInfos s := by
     cases q with
     | words w =>
-      simp only [Ctx.lookupQuery, lookupWords, fuse, Memory.lexical, Memory.vectorSide, List.mem_append,
-        List.mem_filter, decide_eq_true_eq] at hx
-      rcases hx with ⟨hx, _⟩ | ⟨⟨_, hx⟩, _⟩ <;> exact hx
+      cases o with
+      | none =>
+        simp only [Ctx.lookupQuery, lookupWordsUnder, Memory.lexical, List.mem_filter] at hx
+        exact hx.1
+      | some p =>
+        simp only [Ctx.lookupQuery, lookupWordsUnder, lookupWords, fuse, Memory.lexical, Memory.vectorSide,
+          List.mem_append, List.mem_filter, decide_eq_true_eq] at hx
+        rcases hx with ⟨hx, _⟩ | ⟨⟨_, hx⟩, _⟩ <;> exact hx
     | ptr h => simp only [Ctx.lookupQuery, lookupPtr, List.mem_filter] at hx; exact hx.1
     | span sp => simp only [Ctx.lookupQuery, lookupPtr, List.mem_filter] at hx; exact hx.1
   cases s with
@@ -628,11 +633,11 @@ theorem accept_lookup (hr : Recorded Γ m callI) (t : ToolId) (s : Scope) (q : Q
     Accepted Γ m t (lookupEffect Γ m (m.push .hippocampus callI) callI.hash t s q) := by
   unfold lookupEffect
   refine hr.accepted_serve _ hr.wf1 (Grows.refl _) hr.today1 t _ ?_ _ _ ?_ _
-  · by_cases h1 : (Γ.lookupStream m s q Γ.policy).isEmpty = true <;>
-      by_cases h2 : Γ.p.page < (Γ.lookupStream m s q Γ.policy).length <;> simp [h1, h2]
+  · generalize Γ.lookupStream m s q m.currentPolicy = body
+    by_cases h1 : body.isEmpty = true <;> by_cases h2 : Γ.p.page < body.length <;> simp [h1, h2]
   · intro p hp
     obtain ⟨x, hx, rfl⟩ := List.mem_map.mp hp
-    exact hr.hashes1 (mem_hashes_of_mem (lookupQuery_mem Γ m s q Γ.policy x hx))
+    exact hr.hashes1 (mem_hashes_of_mem (lookupQuery_mem Γ m s q m.currentPolicy x hx))
 
 /-- (55) A consider serves its digest: its traces never fail. -/
 theorem accept_consider (hr : Recorded Γ m callI) (ts : List Pointer) (q : Data) (chains : List (List Data)) :

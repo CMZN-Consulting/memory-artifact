@@ -49,19 +49,19 @@ theorem tail_hash_not_commit (Γ : Ctx) :
       m.toolkit ≠ m'.toolkit :=
   TailWitness.tail_hash_not_commit Γ
 
-/-- T8, replayability: in a memory the harness reached, the return to a recorded lookup by words is recomputed from the log
-before the call and the key and words the call recorded: the same log, the same words and the same policy key give the same
-return. `ret` must be a return: without that hypothesis the statement is false (`ConformanceAux.lookup_replayable_false`: an edge
-in the private store, written under a tool's name and pointing first to the call, is accepted by the harness and holds data no
-lookup made). -/
+/-- T8, replayability: in a memory the harness reached, the return to a recorded lookup by words is recomputed from the log before
+the call, the words the call recorded and the policy its derivation points to (design record section 18g): the same log, the same
+words and the same policy give the same return, under the lookup's own epoch for ever, whatever policies came after. `ret` must be
+a return: without that hypothesis the statement is false (`ConformanceAux.lookup_replayable_false`: an edge in the private store,
+written under a tool's name and pointing first to the call, is accepted by the harness and holds data no lookup made). -/
 theorem lookup_replayable (Γ : Ctx) (m : Memory) (hd : Derivable Γ m) (call ret : Info) (hcall : call ∈ m.hippocampus)
     (hret : ret ∈ m.storePrivate) (hk : call.kind = .call)
     (hcode : call.data[1]? = some ToolId.recall.code ∨ call.data[1]? = some ToolId.reach.code)
     (htag : call.data[2]? = some 0) (hp : ret.pointers.head? = some call.hash) (hr : ret.kind.isReturn = true)
     (hnr : ret.kind ≠ .ret .refusal) :
-    ∃ p w, Policy.decode (call.data.drop 3) = some (p, w) ∧
-      ret.data = ret.seq :: (canonAll (lookupWords Γ (m.arrivedBefore call.seq)
-        (if call.data[1]? = some ToolId.recall.code then .own else .store) w p)).take Γ.p.page := by
+    ret.data = ret.seq :: (canonAll (lookupWordsUnder Γ (m.arrivedBefore call.seq)
+      (if call.data[1]? = some ToolId.recall.code then .own else .store) (call.data.drop 3) (m.policyOfCall call))).take
+        Γ.p.page := by
   exact lookup_replayable_aux Γ m hd call ret hcall hret ⟨hk, hcode, htag, hp, hr, hnr⟩
 
 /-- Every root in a memory the harness reached is the root its log prescribes: it is `root Γ m₀` for the memory `m₀` that the

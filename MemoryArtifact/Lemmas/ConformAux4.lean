@@ -12,25 +12,6 @@ that no lookup made.
 namespace MemoryArtifact
 namespace ConformanceAux
 
-/-- Everything in the memory before a run of pushes is in the memory after it. -/
-theorem Pushes.mem_all {φ : LogId → Info → Prop} {M M' : Memory} (h : Pushes φ M M') :
-    ∀ x ∈ M.all, x ∈ M'.all := by
-  induction h with
-  | refl => intro x hx; exact hx
-  | push l j _ _ _ ih => intro x hx; exact (mem_all_push _ l j x).2 (Or.inl (ih x hx))
-
-/-- The hippocampus before a run of pushes is in the hippocampus after it. -/
-theorem Pushes.mem_hippocampus {φ : LogId → Info → Prop} {M M' : Memory} (h : Pushes φ M M') :
-    ∀ x ∈ M.hippocampus, x ∈ M'.hippocampus := by
-  induction h with
-  | refl => intro x hx; exact hx
-  | push l j _ _ _ ih =>
-    intro x hx
-    rw [hippocampus_push]
-    split
-    · exact List.mem_append.2 (Or.inl (ih x hx))
-    · exact ih x hx
-
 /-- An edge of kind cites in the private store, written by anyone but the model, between two infos of the memory. -/
 theorem ok_private_edge (Γ : Ctx) (m : Memory) (hm : WellFormed Γ m) (x y : Info) (hx : x ∈ m.all) (hy : y ∈ m.all)
     (hne : x.hash ≠ y.hash) (w : Name) (hw : w ≠ Γ.self) (data : Data) :
@@ -105,9 +86,9 @@ theorem lookup_replayable_false (Γ : Ctx) :
       (call.data[1]? = some ToolId.recall.code ∨ call.data[1]? = some ToolId.reach.code) ∧ call.data[2]? = some 0 ∧
       ret.pointers.head? = some call.hash ∧ ret.kind ≠ .ret .refusal ∧
       ret.writer = Γ.toolName (if call.data[1]? = some ToolId.recall.code then .recall else .reach) ∧
-      ¬∃ p w, Policy.decode (call.data.drop 3) = some (p, w) ∧
-        ret.data = ret.seq :: (canonAll (lookupWords Γ (m.arrivedBefore call.seq)
-          (if call.data[1]? = some ToolId.recall.code then .own else .store) w p)).take Γ.p.page := by
+      ¬ret.data = ret.seq :: (canonAll (lookupWordsUnder Γ (m.arrivedBefore call.seq)
+        (if call.data[1]? = some ToolId.recall.code then .own else .store) (call.data.drop 3) (m.policyOfCall call))).take
+          Γ.p.page := by
   -- the memory after the first day begins, holding the tool
   have hd2 := dayOne_derivable Γ
   have hw2 := derivable_wellFormed Γ _ hd2
@@ -157,7 +138,7 @@ theorem lookup_replayable_false (Γ : Ctx) :
   have hd4 : Derivable Γ ((toolStep Γ m2 c).push .storePrivate a) := by
     have := Derivable.offer (Γ := Γ) (m := toolStep Γ m2 c) .storePrivate a rfl hd3
     rwa [step_of_ok hok] at this
-  have hdata : call.data = m2.count :: 0 :: 0 :: Γ.policy.key := by
+  have hdata : call.data = m2.count :: 0 :: [0] := by
     simp [call, mkInfo, Ctx.callDraft, Kind.numbered, c, ToolCall.tool, ToolCall.payload, ToolId.code]
   have h1 : call.data[1]? = some ToolId.recall.code := by rw [hdata]; rfl
   refine ⟨_, call, a, hd4, hcall3, ?_, rfl, Or.inl h1, by rw [hdata]; rfl, rfl, by simp [a, mkInfo],
@@ -165,13 +146,12 @@ theorem lookup_replayable_false (Γ : Ctx) :
   · exact List.mem_append_right _ (List.mem_singleton_self _)
   · rw [if_pos h1]
     rfl
-  · rintro ⟨p, w, -, h⟩
+  · intro h
     have h2 : a.data = a.seq :: List.replicate (Γ.p.page + 1) 0 := by
       simp [a, mkInfo, Kind.numbered]
     rw [h2, List.cons.injEq] at h
     have := congrArg List.length h.2
     simp at this
-    have := List.length_take_le Γ.p.page (canonAll (lookupWords Γ ((toolStep Γ m2 c).push .storePrivate a |>.arrivedBefore call.seq) (if call.data[1]? = some ToolId.recall.code then .own else .store) w p))
     omega
 
 end ConformanceAux

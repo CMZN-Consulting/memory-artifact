@@ -88,6 +88,25 @@ theorem Pushes.cut {φ : LogId → Info → Prop} {M M' : Memory} (h : Pushes φ
     have hc := hp.count_le
     rw [arrivedBefore_push_of_le _ l j n (by omega), ih n hn]
 
+/-- Everything in the memory before a run of pushes is in the memory after it. -/
+theorem Pushes.mem_all {φ : LogId → Info → Prop} {M M' : Memory} (h : Pushes φ M M') :
+    ∀ x ∈ M.all, x ∈ M'.all := by
+  induction h with
+  | refl => intro x hx; exact hx
+  | push l j _ _ _ ih => intro x hx; exact (mem_all_push _ l j x).2 (Or.inl (ih x hx))
+
+/-- The hippocampus before a run of pushes is in the hippocampus after it. -/
+theorem Pushes.mem_hippocampus {φ : LogId → Info → Prop} {M M' : Memory} (h : Pushes φ M M') :
+    ∀ x ∈ M.hippocampus, x ∈ M'.hippocampus := by
+  induction h with
+  | refl => intro x hx; exact hx
+  | push l j _ _ _ ih =>
+    intro x hx
+    rw [hippocampus_push]
+    split
+    · exact List.mem_append.2 (Or.inl (ih x hx))
+    · exact ih x hx
+
 /-! ## The appends of one call -/
 
 /-- What one push of a call's appends satisfies, given the hash `ch` of the call's experience and the shape `D` of its return:
@@ -99,8 +118,8 @@ def CallPush (ch : Hash) (D : Info → Prop) (l : LogId) (j : Info) : Prop :=
 
 /-- The shape the return of a lookup call has: its data is its arrival number and the first page of the stream it serves. -/
 def lookupD (Γ : Ctx) (m : Memory) : ToolCall → Info → Prop
-  | .recall q, j => j.data = j.seq :: (Γ.lookupStream m .own q Γ.policy).take Γ.p.page
-  | .reach q, j => j.data = j.seq :: (Γ.lookupStream m .store q Γ.policy).take Γ.p.page
+  | .recall q, j => j.data = j.seq :: (Γ.lookupStream m .own q m.currentPolicy).take Γ.p.page
+  | .reach q, j => j.data = j.seq :: (Γ.lookupStream m .store q m.currentPolicy).take Γ.p.page
   | _, _ => True
 
 /-- A push to a log that is neither the hippocampus nor the private store is a push of a call's appends. -/
@@ -373,11 +392,12 @@ theorem mem_of_head?_eq_some {α : Type} {l : List α} {a : α} (h : l.head? = s
   | nil => simp at h
   | cons b t => simp at h; simp [h]
 
-/-- The return to a lookup by words, computed from the log before the call and the key and words the call recorded. -/
+/-- The return to a lookup by words, computed from the log before the call, the words the call recorded and the policy its
+derivation points to. -/
 def LookupReplay (Γ : Ctx) (M : Memory) (call ret : Info) : Prop :=
-  ∃ p w, Policy.decode (call.data.drop 3) = some (p, w) ∧
-    ret.data = ret.seq :: (canonAll (lookupWords Γ (M.arrivedBefore call.seq)
-      (if call.data[1]? = some ToolId.recall.code then .own else .store) w p)).take Γ.p.page
+  ret.data = ret.seq :: (canonAll (lookupWordsUnder Γ (M.arrivedBefore call.seq)
+    (if call.data[1]? = some ToolId.recall.code then .own else .store) (call.data.drop 3) (M.policyOfCall call))).take
+      Γ.p.page
 
 /-- What is known of a lookup call and its return. -/
 structure LookupCase (call ret : Info) : Prop where
@@ -388,17 +408,107 @@ structure LookupCase (call ret : Info) : Prop where
   isRet : ret.kind.isReturn = true
   notRef : ret.kind ≠ .ret .refusal
 
-/-- The replay of a lookup does not change when the cut it reads is the same. -/
-theorem LookupReplay.of_cut {Γ : Ctx} {M M' : Memory} {call ret : Info} (h : LookupReplay Γ M call ret)
-    (hc : M'.arrivedBefore call.seq = M.arrivedBefore call.seq) : LookupReplay Γ M' call ret := by
-  obtain ⟨p, w, hd, he⟩ := h
-  exact ⟨p, w, hd, by rw [hc]; exact he⟩
+/-- The replay of a lookup does not change when the cut it reads and the policy its call points to are the same. -/
+theorem LookupReplay.of_ext {Γ : Ctx} {M M' : Memory} {call ret : Info} (h : LookupReplay Γ M call ret)
+    (hc : M'.arrivedBefore call.seq = M.arrivedBefore call.seq) (hp : M'.policyOfCall call = M.policyOfCall call) :
+    LookupReplay Γ M' call ret := by
+  unfold LookupReplay at h ⊢
+  rw [hc, hp]
+  exact h
 
-/-- The call of a lookup by words, made of the memory it is made in: its data hold the code, the tag and the policy key and
-words, and the return that has the shape `lookupD` gives is the replay. -/
+/-- The infos that today's task names are tasks of the memory. -/
+theorem todayTask_kind (m : Memory) : ∀ p ∈ m.todayTask, ∃ x ∈ m.all, x.hash = p ∧ x.kind = .task := by
+  intro p hp
+  unfold Memory.todayTask at hp
+  split at hp
+  · rename_i pg _
+    unfold Memory.taskHead at hp
+    cases hf : pg.pointers.find? m.isTaskPtr with
+    | none => rw [hf] at hp; simp at hp
+    | some q =>
+      rw [hf] at hp
+      have hq : q = p := (by simpa using hp : p = q).symm
+      subst hq
+      have h1 := List.find?_some hf
+      unfold Memory.isTaskPtr at h1
+      obtain ⟨j, hj, hjb⟩ := List.any_eq_true.1 h1
+      simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hjb
+      exact ⟨j, hj, hjb.1, hjb.2⟩
+  · simp at hp
+
+/-- The declaration a call points to is a tool of the memory. -/
+theorem toolDecl_kind {m : Memory} {t : ToolId} {decl : Pointer} (h : m.toolDecl t = some decl) :
+    ∃ D ∈ m.all, D.hash = decl ∧ D.kind = .tool := by
+  unfold Memory.toolDecl at h
+  obtain ⟨D, hf, hh⟩ := Option.map_eq_some_iff.1 h
+  have h1 := List.find?_some hf
+  have h2 := List.mem_of_find?_eq_some hf
+  simp only [Bool.and_eq_true, decide_eq_true_eq] at h1
+  exact ⟨D, by simp [Memory.all, h2], hh, h1.1.1⟩
+
+/-- The policy that the derivation of a fresh lookup call by words points to is the policy in force in the memory before it. -/
+theorem policyOfCall_call {Γ : Ctx} {m M' : Memory} (hM' : AppendOnly Γ M')
+    (hsub : ∀ x ∈ m.all, x ∈ M'.all) (c : ToolCall) (hu : c.usesPolicy = true) (hn : c.named = []) (decl : Pointer)
+    (hdecl : m.toolDecl c.tool = some decl) :
+    M'.policyOfCall (mkInfo Γ m .hippocampus (Γ.callDraft m c decl)) = m.currentPolicy := by
+  obtain ⟨D, hDm, hDh, hDk⟩ := toolDecl_kind hdecl
+  have hRD : M'.resolve decl = some D := by rw [← hDh]; exact resolve_of_mem hM' (hsub D hDm)
+  have hT : ∀ x ∈ m.todayTask.filterMap M'.resolve, x.kind = .task := by
+    intro x hx
+    obtain ⟨p, hp, hpx⟩ := List.mem_filterMap.1 hx
+    obtain ⟨y, hy, rfl, hyk⟩ := todayTask_kind m p hp
+    rw [resolve_of_mem hM' (hsub y hy)] at hpx
+    cases hpx
+    exact hyk
+  have hptr : (mkInfo Γ m .hippocampus (Γ.callDraft m c decl)).pointers =
+      decl :: (m.policyHead.map (fun x : Info => x.hash)).toList ++ [] ++ m.todayTask := by
+    simp [mkInfo, Ctx.callDraft, hu, hn]
+  unfold Memory.policyOfCall Memory.currentPolicy
+  rw [hptr]
+  cases hph : m.policyHead with
+  | none =>
+    have : (List.find? (fun j => decide (j.kind = .policy)) (List.filterMap M'.resolve (decl :: (Option.map (fun x : Info => x.hash) none).toList ++ [] ++ m.todayTask))) = none := by
+      simp only [Option.map_none, Option.toList_none, List.append_nil, List.cons_append, List.nil_append, List.filterMap_cons, hRD]
+      rw [List.find?_cons_of_neg (by simp [hDk])]
+      exact List.find?_eq_none.2 (fun x hx => by simp [hT x hx])
+    rw [this]
+  | some P =>
+    have hPm : P ∈ m.all := by
+      unfold Memory.policyHead at hph
+      have := List.mem_of_getLast? hph
+      simp only [List.mem_filter] at this
+      simp [Memory.all, this.1]
+    have hPk : P.kind = .policy := by
+      unfold Memory.policyHead at hph
+      have := List.mem_of_getLast? hph
+      simpa using (List.mem_filter.1 this).2
+    have hRP : M'.resolve P.hash = some P := resolve_of_mem hM' (hsub P hPm)
+    have : (List.find? (fun j => decide (j.kind = .policy)) (List.filterMap M'.resolve (decl :: (Option.map (fun x : Info => x.hash) (some P)).toList ++ [] ++ m.todayTask))) = some P := by
+      simp only [Option.map_some, Option.toList_some, List.append_nil, List.cons_append, List.nil_append, List.filterMap_cons, hRD, hRP]
+      rw [List.find?_cons_of_neg (by simp [hDk]), List.find?_cons_of_pos (by simp [hPk])]
+    rw [this]
+
+theorem mem_all_of_hippocampus {m : Memory} {x : Info} (h : x ∈ m.hippocampus) : x ∈ m.all := by
+  simp [Memory.all, h]
+
+theorem mem_all_of_private {m : Memory} {x : Info} (h : x ∈ m.storePrivate) : x ∈ m.all := by
+  simp [Memory.all, h]
+
+/-- The replay of a lookup, in a memory that grows by an extension that keeps every cut at or below the old count. -/
+theorem replay_transfer {Γ : Ctx} {M M' : Memory} (hM : WellFormed Γ M) (hM' : WellFormed Γ M')
+    (hsub : ∀ x ∈ M.all, x ∈ M'.all) (hcut : ∀ n, n ≤ M.count → M'.arrivedBefore n = M.arrivedBefore n)
+    {call ret : Info} (hc : call ∈ M.hippocampus) (h : LookupReplay Γ M call ret) : LookupReplay Γ M' call ret :=
+  h.of_ext (hcut _ (Nat.le_of_lt (seq_lt_count hM.appendOnly (mem_all_of_hippocampus hc))))
+    (policyOfCall_ext hM.appendOnly hM'.appendOnly hsub call (fun p hp => by
+      obtain ⟨j, hj, hjh, -⟩ := hM.resolves call (mem_all_of_hippocampus hc) p hp
+      exact ⟨j, hj, hjh⟩))
+
+/-- The call of a lookup by words, made of the memory it is made in: its data hold the code, the tag and the words, its
+derivation points to the policy in force, and the return that has the shape `lookupD` gives is the replay. -/
 theorem lookupReplay_of_shape (Γ : Ctx) (m : Memory) (c : ToolCall) (call ret : Info)
     (hdata : call.data = call.seq :: c.tool.code :: c.payload Γ)
-    (hcase : LookupCase call ret) (hD : lookupD Γ m c ret) (M' : Memory) (hcut : M'.arrivedBefore call.seq = m) :
+    (hcase : LookupCase call ret) (hD : lookupD Γ m c ret) (M' : Memory) (hcut : M'.arrivedBefore call.seq = m)
+    (hpol : c.usesPolicy = true → c.named = [] → M'.policyOfCall call = m.currentPolicy) :
     LookupReplay Γ M' call ret := by
   obtain ⟨-, hcode, htag, -, -, -⟩ := hcase
   rw [hdata] at hcode htag
@@ -406,24 +516,24 @@ theorem lookupReplay_of_shape (Γ : Ctx) (m : Memory) (c : ToolCall) (call ret :
   | recall q =>
     cases q with
     | words w =>
-      refine ⟨Γ.policy, w, ?_, ?_⟩
-      · rw [hdata]
-        simpa [ToolCall.tool, ToolCall.payload] using policy_decode_key Γ.policy w
-      · rw [hcut]
-        have : call.data[1]? = some ToolId.recall.code := by rw [hdata]; rfl
-        simpa [this, lookupD, Ctx.lookupStream] using hD
+      unfold LookupReplay
+      rw [hcut, hpol rfl rfl]
+      have h1 : call.data[1]? = some ToolId.recall.code := by rw [hdata]; rfl
+      have h3 : call.data.drop 3 = w := by rw [hdata]; simp [ToolCall.payload]
+      rw [if_pos h1, h3]
+      simpa [lookupD, Ctx.lookupStream] using hD
     | ptr p => simp [ToolCall.payload] at htag
     | span sp => simp [ToolCall.payload] at htag
   | reach q =>
     cases q with
     | words w =>
-      refine ⟨Γ.policy, w, ?_, ?_⟩
-      · rw [hdata]
-        simpa [ToolCall.tool, ToolCall.payload] using policy_decode_key Γ.policy w
-      · rw [hcut]
-        have : call.data[1]? = some ToolId.reach.code := by rw [hdata]; rfl
-        have hne : ¬ call.data[1]? = some ToolId.recall.code := by rw [this]; decide
-        simpa [hne, lookupD, Ctx.lookupStream] using hD
+      unfold LookupReplay
+      rw [hcut, hpol rfl rfl]
+      have h1 : call.data[1]? = some ToolId.reach.code := by rw [hdata]; rfl
+      have hne : ¬ call.data[1]? = some ToolId.recall.code := by rw [h1]; decide
+      have h3 : call.data.drop 3 = w := by rw [hdata]; simp [ToolCall.payload]
+      rw [if_neg hne, h3]
+      simpa [lookupD, Ctx.lookupStream] using hD
     | ptr p => simp [ToolCall.payload] at htag
     | span sp => simp [ToolCall.payload] at htag
   | consider ts q chains => simp [ToolCall.tool, ToolId.code] at hcode
@@ -435,14 +545,8 @@ theorem lookupReplay_of_shape (Γ : Ctx) (m : Memory) (c : ToolCall) (call ret :
   | hand rd => simp [ToolCall.tool, ToolId.code] at hcode
   | stop => simp [ToolCall.tool, ToolId.code] at hcode
 
-theorem mem_all_of_hippocampus {m : Memory} {x : Info} (h : x ∈ m.hippocampus) : x ∈ m.all := by
-  simp [Memory.all, h]
-
-theorem mem_all_of_private {m : Memory} {x : Info} (h : x ∈ m.storePrivate) : x ∈ m.all := by
-  simp [Memory.all, h]
-
 /-- T8 in a memory the harness reached: the return to a lookup by words is the replay of the lookup from the log before the
-call, by induction on how the memory was reached. -/
+call, under the policy the call points to, by induction on how the memory was reached. -/
 theorem lookup_replayable_aux (Γ : Ctx) (m : Memory) (hd : Derivable Γ m) :
     ∀ call ret : Info, call ∈ m.hippocampus → ret ∈ m.storePrivate → LookupCase call ret →
       LookupReplay Γ m call ret := by
@@ -453,20 +557,20 @@ theorem lookup_replayable_aux (Γ : Ctx) (m : Memory) (hd : Derivable Γ m) :
   | @offer m l i hk hd ih =>
     intro call ret hcall hret hcase
     have hw := derivable_wellFormed Γ m hd
+    have hw' := derivable_wellFormed Γ _ (Derivable.offer l i hk hd)
     have hP := pushes_step Γ m l i hk 0 (fun _ => False)
     obtain ⟨hcall', hret'⟩ := old_of_pushes hP hcall hret hcase.kind hcase.isRet hcase.notRef
-    have hlt := Nat.le_of_lt (seq_lt_count hw.appendOnly (mem_all_of_hippocampus hcall'))
-    exact (ih call ret hcall' hret' hcase).of_cut (hP.cut _ hlt)
+    exact replay_transfer hw hw' hP.mem_all (fun n hn => hP.cut n hn) hcall' (ih call ret hcall' hret' hcase)
   | @tool m c hd ih =>
     intro call ret hcall hret hcase
     have hw := derivable_wellFormed Γ m hd
+    have hw' := derivable_wellFormed Γ _ (Derivable.tool c hd)
     rcases toolStep_pushes Γ m c with ⟨n, hA⟩ | ⟨decl, i, hdecl, hi, hok, hP⟩
     · have hP : Pushes (CallPush 0 (fun _ => False)) m (toolStep Γ m c) := by
         rw [hA]
         exact pushes_recordRefusal Γ m n 0 _
       obtain ⟨hcall', hret'⟩ := old_of_pushes hP hcall hret hcase.kind hcase.isRet hcase.notRef
-      have hlt := Nat.le_of_lt (seq_lt_count hw.appendOnly (mem_all_of_hippocampus hcall'))
-      exact (ih call ret hcall' hret' hcase).of_cut (hP.cut _ hlt)
+      exact replay_transfer hw hw' hP.mem_all (fun n hn => hP.cut n hn) hcall' (ih call ret hcall' hret' hcase)
     · have hfresh : i.hash ∉ m.hashes := hok.1.2.1
       have hseq : i.seq = m.count := hok.1.2.2.2.1
       have hdata : i.data = i.seq :: c.tool.code :: c.payload Γ := by
@@ -475,6 +579,8 @@ theorem lookup_replayable_aux (Γ : Ctx) (m : Memory) (hd : Derivable Γ m) :
       have hm1h : (m.push .hippocampus i).hippocampus = m.hippocampus ++ [i] := rfl
       have hm1p : (m.push .hippocampus i).storePrivate = m.storePrivate := rfl
       have hcnt : (m.push .hippocampus i).count = m.count + 1 := count_push m _ i
+      have hsub : ∀ x ∈ m.all, x ∈ (toolStep Γ m c).all :=
+        fun x hx => hP.mem_all x ((mem_all_push _ _ _ _).2 (Or.inl hx))
       have hcases : call ∈ m.hippocampus ∨ call = i := by
         by_cases hn : call ∈ (m.push .hippocampus i).hippocampus
         · rw [hm1h, List.mem_append, List.mem_singleton] at hn
@@ -482,10 +588,8 @@ theorem lookup_replayable_aux (Γ : Ctx) (m : Memory) (hd : Derivable Γ m) :
         · exact absurd hcase.kind ((hP.hippocampus_new call hcall hn).1 rfl)
       rcases hcases with hc | rfl
       · by_cases hr' : ret ∈ m.storePrivate
-        · have hlt := seq_lt_count hw.appendOnly (mem_all_of_hippocampus hc)
-          have hcut : (toolStep Γ m c).arrivedBefore call.seq = m.arrivedBefore call.seq := by
-            rw [hP.cut call.seq (by omega), arrivedBefore_push_of_le m .hippocampus i call.seq (by omega)]
-          exact (ih call ret hc hr' hcase).of_cut hcut
+        · refine replay_transfer hw hw' hsub (fun n hn => ?_) hc (ih call ret hc hr' hcase)
+          rw [hP.cut n (by omega), arrivedBefore_push_of_le m .hippocampus i n (by omega)]
         · exfalso
           have hn : ret ∉ (m.push .hippocampus i).storePrivate := hr'
           rcases (hP.private_new ret hret hn).2 rfl hcase.isRet with h | ⟨h, _⟩
@@ -502,17 +606,20 @@ theorem lookup_replayable_aux (Γ : Ctx) (m : Memory) (hd : Derivable Γ m) :
           · have hcut : (toolStep Γ m c).arrivedBefore call.seq = m := by
               rw [hP.cut call.seq (by omega), arrivedBefore_push_of_le m .hippocampus call call.seq (by omega), hseq,
                 arrivedBefore_count Γ m hw.appendOnly]
-            exact lookupReplay_of_shape Γ m c call ret hdata hcase hD _ hcut
+            refine lookupReplay_of_shape Γ m c call ret hdata hcase hD _ hcut (fun hu hn => ?_)
+            rw [hi]
+            exact policyOfCall_call hw'.appendOnly hsub c hu hn decl hdecl
   | @newDay m hd ih =>
     intro call ret hcall hret hcase
     have hw := derivable_wellFormed Γ m hd
+    have hw' := derivable_wellFormed Γ _ (Derivable.newDay hd)
     rw [startDay_hippocampus'] at hcall
     have hret' : ret ∈ m.storePrivate := by
       refine Classical.byContradiction fun hn => ?_
       have hk := hcase.isRet
       rcases startDay_private_new Γ m ret hret hn with h | h <;> simp [h, Kind.isReturn] at hk
-    have hlt := Nat.le_of_lt (seq_lt_count hw.appendOnly (mem_all_of_hippocampus hcall))
-    exact (ih call ret hcall hret' hcase).of_cut ((chain_cuts Γ (startDay_chain Γ m hw) hw call.seq).1 hlt)
+    exact replay_transfer hw hw' (extends_mem_all (startDay_chain Γ m hw).extends)
+      (fun n hn => (chain_cuts Γ (startDay_chain Γ m hw) hw n).1 hn) hcall (ih call ret hcall hret' hcase)
 
 end ConformanceAux
 end MemoryArtifact

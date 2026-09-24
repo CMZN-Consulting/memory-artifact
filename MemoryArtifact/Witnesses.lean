@@ -232,7 +232,7 @@ theorem coverage_needed (Γ : Ctx) (hr : Γ.ranker = fun _ _ _ => []) :
     simp [Memory.scopeInfos, Lone.shelfMem, Memory.push, Memory.empty]
   have hh : (Lone.shelfInfo Γ).holdsWords [2] = false := by
     simp [Info.holdsWords, Lone.shelfInfo, mkInfo, Kind.numbered]
-  refine ⟨fun _ _ => True, Lone.shelfMem Γ, .store, [2], Γ.policy, Lone.shelfMem_wellFormed Γ, ?_, ?_⟩
+  refine ⟨fun _ _ => True, Lone.shelfMem Γ, .store, [2], ⟨0, 0, []⟩, Lone.shelfMem_wellFormed Γ, ?_, ?_⟩
   · intro hc
     have := hc .store [2] _ hmem trivial hh
     simp [hr] at this

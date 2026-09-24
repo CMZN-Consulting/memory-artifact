@@ -45,6 +45,11 @@ def ToolCall.tool : ToolCall → ToolId
   | .relate _ _ _ => .relate | .file _ _ => .file | .act _ _ => .act | .ask _ _ => .ask | .hand _ => .hand
   | .stop => .stop
 
+/-- Whether a call is a lookup by words, which runs under a policy and points to it. -/
+def ToolCall.usesPolicy : ToolCall → Bool
+  | .recall (.words _) | .reach (.words _) => true
+  | _ => false
+
 /-- The pointers a call names, which the call experience carries after the tool's declaration. -/
 def ToolCall.named : ToolCall → List Pointer
   | .consider ts _ _ => ts
@@ -53,11 +58,11 @@ def ToolCall.named : ToolCall → List Pointer
   | .file _ ss => ss
   | _ => []
 
-/-- The data a call carries after the tool's code. A lookup opens with the kind of its query: 0 for words (then the policy key
-and the words, so that the lookup is replayable from the log), 1 for a pointer (then the pointer), 2 for a span (then its
-target, start and length). -/
-def ToolCall.payload (Γ : Ctx) : ToolCall → Data
-  | .recall (.words w) | .reach (.words w) => 0 :: (Γ.policy.key ++ w)
+/-- The data a call carries after the tool's code. A lookup opens with the kind of its query: 0 for words (then the words; the
+policy it ran under is a pointer of the call, so that the lookup is replayable from the log), 1 for a pointer (then the pointer),
+2 for a span (then its target, start and length). -/
+def ToolCall.payload (_Γ : Ctx) : ToolCall → Data
+  | .recall (.words w) | .reach (.words w) => 0 :: w
   | .recall (.ptr p) | .reach (.ptr p) => [1, p]
   | .recall (.span sp) | .reach (.span sp) => [2, sp.target, sp.start, sp.len]
   | .consider _ q _ => q
@@ -112,7 +117,8 @@ def tryDraft (Γ : Ctx) (m : Memory) (l : LogId) (d : Draft) : Option (Memory ×
 /-- The experience of a call: written by the individual, first pointer the tool's declaration, then what the call names, and on
 a day of work the task. -/
 def Ctx.callDraft (Γ : Ctx) (m : Memory) (c : ToolCall) (decl : Pointer) : Draft :=
-  { writer := Γ.self, kind := .call, data := c.tool.code :: c.payload Γ, pointers := decl :: c.named ++ m.todayTask }
+  { writer := Γ.self, kind := .call, data := c.tool.code :: c.payload Γ,
+    pointers := decl :: (if c.usesPolicy then (m.policyHead.map (·.hash)).toList else []) ++ c.named ++ m.todayTask }
 
 /-- An experience of the individual that carries the task on a day of work. -/
 def Ctx.expDraft (Γ : Ctx) (m : Memory) (k : Kind) (data : Data) (ptrs : List Pointer) : Draft :=
@@ -182,8 +188,8 @@ def considerTraces (Γ : Ctx) (call : Hash) :
 /-- (52) What a lookup serves: the stream of the infos the query names (or of the span), cut to a page, with a cursor on the
 whole; the return points to the infos named. `m` is the memory before the call, `m1` after the experience of the call. -/
 def lookupEffect (Γ : Ctx) (m m1 : Memory) (call : Hash) (t : ToolId) (s : Scope) (q : Query) : Memory :=
-  let hits := Γ.lookupQuery m s q Γ.policy
-  let body := Γ.lookupStream m s q Γ.policy
+  let hits := Γ.lookupQuery m s q m.currentPolicy
+  let body := Γ.lookupStream m s q m.currentPolicy
   let sp : Span :=
     match q with
     | .words _ => ⟨call, 0, body.length⟩

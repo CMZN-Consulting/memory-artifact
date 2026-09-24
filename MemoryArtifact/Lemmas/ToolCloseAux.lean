@@ -244,8 +244,15 @@ theorem call_ok_tc (Γ : Ctx) (m : Memory) (hm : WellFormed Γ m) (c : ToolCall)
     intro p hp
     rw [mkInfo_pointers] at hp
     simp only [Ctx.callDraft, List.cons_append, List.mem_cons, List.mem_append] at hp
-    rcases hp with rfl | hp | hp
+    rcases hp with rfl | (hp | hp) | hp
     · exact ⟨x, mem_all_of_toolkit_tc hx, hxd⟩
+    · split at hp
+      · obtain ⟨pol, hpol, rfl⟩ : ∃ a, m.policyHead = some a ∧ a.hash = p := by simpa using hp
+        exact ⟨pol, by
+          have := List.mem_of_getLast? hpol
+          simp only [Memory.all, List.mem_append]
+          exact Or.inl (Or.inr (List.mem_filter.mp this).1), rfl⟩
+      · exact absurd hp (by simp)
     · exact named_resolve_tc hneeds p hp
     · obtain ⟨j, hj, hjp, -⟩ := todayTask_spec_tc hp; exact ⟨j, hj, hjp⟩
   refine ⟨mkInfo_locAppendOnly hm.appendOnly _ _ rfl, hres, ⟨rfl, rfl⟩, ?_, ?_, (fun h => nomatch h), ?_,

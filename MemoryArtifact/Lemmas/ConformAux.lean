@@ -584,5 +584,48 @@ theorem step_cases (Γ : Ctx) (M : Memory) (l : LogId) (i : Info) :
     right
     exact ⟨r.number, by unfold step; rw [ha]; rfl⟩
 
+/-! ## Pointers resolve, and infos stay where they are -/
+
+/-- In a memory whose hashes are distinct, a pointer to an info of the memory resolves to that info. -/
+theorem resolve_of_mem {Γ : Ctx} {m : Memory} (h : AppendOnly Γ m) {x : Info} (hx : x ∈ m.all) :
+    m.resolve x.hash = some x := by
+  unfold Memory.resolve
+  cases hf : m.all.find? (fun i => i.hash == x.hash) with
+  | none =>
+    have := List.find?_eq_none.1 hf x hx
+    simp at this
+  | some y =>
+    have h1 := List.find?_some hf
+    have h2 := List.mem_of_find?_eq_some hf
+    have : y = x := info_eq_of_hash h h2 hx (by simpa using h1)
+    rw [this]
+
+/-- An extension holds every info of the memory it extends. -/
+theorem extends_mem_all {m m' : Memory} (h : m.Extends m') : ∀ x ∈ m.all, x ∈ m'.all := by
+  intro x hx
+  obtain ⟨l, hl, hxl⟩ := (mem_all_iff_mem_log m x).1 hx
+  exact (mem_all_iff_mem_log m' x).2 ⟨l, hl, (h l hl).subset hxl⟩
+
+/-- Two functions that agree on a list filter-map it alike. -/
+theorem filterMap_congr_mem {α β : Type} (f g : α → Option β) :
+    ∀ l : List α, (∀ x ∈ l, f x = g x) → l.filterMap f = l.filterMap g
+  | [], _ => rfl
+  | a :: l, h => by
+    simp only [List.filterMap_cons]
+    rw [h a List.mem_cons_self, filterMap_congr_mem f g l (fun x hx => h x (List.mem_cons_of_mem _ hx))]
+
+/-- The policy a call's derivation points to does not change when the memory grows: infos are where they were, and the pointers
+of the call resolve to them. -/
+theorem policyOfCall_ext {Γ : Ctx} {M M' : Memory} (hM : AppendOnly Γ M) (hM' : AppendOnly Γ M')
+    (hsub : ∀ x ∈ M.all, x ∈ M'.all) (call : Info) (hres : ∀ p ∈ call.pointers, ∃ x ∈ M.all, x.hash = p) :
+    M'.policyOfCall call = M.policyOfCall call := by
+  have h : call.pointers.filterMap M'.resolve = call.pointers.filterMap M.resolve := by
+    apply filterMap_congr_mem
+    intro p hp
+    obtain ⟨x, hx, rfl⟩ := hres p hp
+    rw [resolve_of_mem hM hx, resolve_of_mem hM' (hsub x hx)]
+  unfold Memory.policyOfCall
+  rw [h]
+
 end ConformanceAux
 end MemoryArtifact

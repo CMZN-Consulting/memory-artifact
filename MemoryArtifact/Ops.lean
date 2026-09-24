@@ -37,7 +37,7 @@ def Kind.offerableIn : LogId → Kind → Bool
   | .storePrivate, .page | .storePrivate, .dayRecord | .storePrivate, .notice | .storePrivate, .answer
   | .storePrivate, .framing | .storePrivate, .edge _ | .storePrivate, .task => true
   | .storeShared, .shelf _ | .storeShared, .heard | .storeShared, .say | .storeShared, .framing
-  | .storeShared, .notice | .storeShared, .edge _ => true
+  | .storeShared, .notice | .storeShared, .edge _ | .storeShared, .policy => true
   | .toolkit, .tool | .toolkit, .edge _ => true
   | _, _ => false
 

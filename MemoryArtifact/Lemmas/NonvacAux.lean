@@ -132,7 +132,7 @@ def kindOf : Nat → Kind
   | 24 => .edge .supersedes | 25 => .edge .cites
   | 30 => .ret .infos | 31 => .ret .span | 32 => .ret .nothing | 33 => .ret .refusal | 34 => .ret .digest
   | 35 => .ret .acknowledgement
-  | 40 => .shelf .passage | 41 => .shelf .way | 42 => .shelf .readersPage | _ => .shelf .recipes
+  | 40 => .shelf .passage | 41 => .shelf .way | 42 => .shelf .readersPage | 44 => .policy | _ => .shelf .recipes
 
 theorem kindOf_code (k : Kind) : kindOf k.code = k := by
   cases k with
