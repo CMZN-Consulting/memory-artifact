@@ -1,0 +1,5 @@
+name = "memory-artifact"
+defaultTargets = ["MemoryArtifact"]
+
+[[lean_lib]]
+name = "MemoryArtifact"
