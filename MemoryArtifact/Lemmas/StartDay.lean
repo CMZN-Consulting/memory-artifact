@@ -1,6 +1,7 @@
 import MemoryArtifact.Lemmas.Group
 import MemoryArtifact.Lemmas.Thread
 import MemoryArtifact.Lemmas.StartDayAux
+import MemoryArtifact.Lemmas.Chain
 
 /-!
 # The startDay: groups by time, then the root
@@ -12,29 +13,62 @@ namespace MemoryArtifact
 
 /-! ## The startDay and the root -/
 
+/-- The heads are targets of a group node: they are entries, so of an entry kind. -/
+theorem heads_groupTarget (m : Memory) : ∀ x ∈ m.heads.map (fun i : Info => i.hash), GroupTarget m x := by
+  intro x hx
+  obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hx
+  have hy' := heads_sub_entries m y hy
+  refine (groupTarget_iff m y.hash).2 ⟨y, ?_, rfl, Or.inr (StartDayAux.entries_isEntryKind m y hy')⟩
+  simp only [Memory.entries, List.mem_filter] at hy'
+  simp [Memory.all, hy'.1]
+
 theorem grouped_mem_top_length (Γ : Ctx) (m : Memory) : (m.grouped Γ).top.length ≤ Γ.p.k :=
   climb_top_length Γ m.heads.length m (m.heads.map (fun i : Info => i.hash)) 0 (by simp)
 
 theorem startDay_eq_push (Γ : Ctx) (m : Memory) : startDay Γ m = (m.grouped Γ).mem.push .storePrivate (root Γ m) :=
   rfl
 
+/-- Grouping adds group nodes to the private store and nothing else. -/
+theorem grouped_groupExt (Γ : Ctx) (m : Memory) : GroupExt m (m.grouped Γ).mem :=
+  climb_groupExt Γ m.heads.length m (m.heads.map (fun i : Info => i.hash)) 0
+
 theorem startDay_extends (Γ : Ctx) (m : Memory) : m.Extends (startDay Γ m) := by
   rw [startDay_eq_push]
   exact Extends.trans (climb_extends Γ m.heads.length m (m.heads.map (fun i : Info => i.hash)) 0)
     (StartDayAux.extends_push (m.grouped Γ).mem .storePrivate (root Γ m))
 
+/-- The top of the grouping is made of targets of a group node, in the memory that holds the group nodes. -/
+theorem grouped_top_groupTarget (Γ : Ctx) (m : Memory) : ∀ t ∈ (m.grouped Γ).top, GroupTarget (m.grouped Γ).mem t :=
+  climb_top_groupTarget Γ m.heads.length m (m.heads.map (fun i : Info => i.hash)) 0 (heads_groupTarget m)
+
+/-- The root passes the twelve local checks against the memory that holds the group nodes. -/
+theorem root_ok (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) : Ok Γ (m.grouped Γ).mem .storePrivate (root Γ m) :=
+  StartDayAux.rootInfo_ok Γ (m.grouped Γ).mem
+    (climb_wellFormed Γ m.heads.length m (m.heads.map (fun i : Info => i.hash)) 0 h (heads_groupTarget m))
+    (m.grouped Γ).top (grouped_mem_top_length Γ m) (grouped_top_groupTarget Γ m)
+
+/-- Starting a day keeps a well-formed memory well-formed: every group node and the root pass the local checks (the heads
+are entries, so of an entry kind; each level of grouping is made of the group nodes just placed). -/
 theorem startDay_wellFormed (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) : WellFormed Γ (startDay Γ m) := by
-  have hl : ∀ x ∈ m.heads.map (fun i : Info => i.hash), x ∈ m.hashes := by
-    intro x hx
-    obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hx
-    have hy' := heads_sub_entries m y hy
-    simp only [Memory.entries, List.mem_filter] at hy'
-    exact List.mem_map_of_mem (by simp [Memory.all, hy'.1])
   have hg : WellFormed Γ (m.grouped Γ).mem :=
-    climb_wellFormed Γ m.heads.length m (m.heads.map (fun i : Info => i.hash)) 0 h hl
+    climb_wellFormed Γ m.heads.length m (m.heads.map (fun i : Info => i.hash)) 0 h (heads_groupTarget m)
   rw [startDay_eq_push, wellFormed_push_iff Γ _ _ _ hg]
-  exact StartDayAux.rootInfo_ok Γ (m.grouped Γ).mem (m.grouped Γ).top (grouped_mem_top_length Γ m)
-    (climb_top_mem Γ m.heads.length m (m.heads.map (fun i : Info => i.hash)) 0 hl)
+  exact root_ok Γ m h
+
+/-- Starting a day is a chain of accepted pushes: the group nodes, then the root. -/
+theorem startDay_chain (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) : Memory.Chain Γ m (startDay Γ m) :=
+  StartDayAux.climb_chain Γ m.heads.length m (m.heads.map (fun i : Info => i.hash)) 0 h (heads_groupTarget m)
+    (startDay Γ m) (Memory.Chain.push .storePrivate (root Γ m) (root_ok Γ m h) (Memory.Chain.refl _))
+
+/-- Starting a day adds exactly one root, the root of the day, after the roots before it. -/
+theorem startDay_roots (Γ : Ctx) (m : Memory) : (startDay Γ m).roots = m.roots ++ [root Γ m] := by
+  rw [startDay_eq_push, roots_push, (grouped_groupExt Γ m).roots]
+  rfl
+
+/-- (9) Starting a day moves the day id on by one: the group nodes are not roots, the root is. -/
+theorem startDay_today (Γ : Ctx) (m : Memory) : (startDay Γ m).today = m.today + 1 := by
+  rw [startDay_eq_push, today_push, (grouped_groupExt Γ m).today]
+  rfl
 
 /-- (30) The root's size never exceeds its fixed bound. The bound is `Γ.p.rootBound = 2 + k * (2 + titleCap) + 2 * c`.
 Unconditional: it holds for every memory, well-formed or not. -/
@@ -68,9 +102,7 @@ theorem startDay_hippocampus (Γ : Ctx) (m : Memory) : (startDay Γ m).hippocamp
   (climb_logs Γ m.heads.length m (m.heads.map (fun i : Info => i.hash)) 0).1
 
 theorem startDay_edges (Γ : Ctx) (m : Memory) : (startDay Γ m).edges = m.edges := by
-  have hg : StartDayAux.AddsGroups m (m.grouped Γ).mem :=
-    StartDayAux.addsGroups_climb Γ m.heads.length m (m.heads.map (fun i : Info => i.hash)) 0
-  obtain ⟨h1, h2, h3, gs, hgs, hk⟩ := hg
+  obtain ⟨h1, h2, h3, gs, hgs, hk⟩ := grouped_groupExt Γ m
   have hgs' : gs.filter (fun i => i.kind.isEdge) = [] :=
     List.filter_eq_nil_iff.2 (fun x hx => by simp [hk x hx, Kind.isEdge])
   have hr : [root Γ m].filter (fun i => i.kind.isEdge) = [] := rfl

@@ -1,8 +1,9 @@
 /-!
 # The Memory Artifact: definitions
 
-Every definition carries the number of its term in `MEMORY_ARTIFACT_definitions_2026-09-24.md` (55 terms, desk-docs
-commit `347c9ca`). Core library only, no Mathlib.
+Every definition carries the number of its term in `MEMORY_ARTIFACT_definitions_2026-09-24.md` (69 terms, desk-docs
+commit `946256a`). Core library only, no Mathlib. This is the second version of the model: the ten tools, the work and
+recreation days, and the rulings of section 15 of the design record.
 
 Modelling choices that the definitions file leaves open are marked "Choice:" in the doc comments and collected in the
 README.
@@ -45,10 +46,13 @@ inductive ReturnKind where
 thinking), or a readers' page (design record, section 13, shared part of the store). -/
 inductive ShelfKind where
   | passage | way | readersPage
+  /-- (63) the list of recipes, an info of the shared part of the store -/
+  | recipes
   deriving DecidableEq, Repr
 
 /-- (12) Kind: a name from a closed list, saying what a piece of data is. The list is the kinds of design record
-section 13, the appends of the memory; the six edge kinds (24) and the six return kinds (36) are arguments. -/
+sections 13 and 14, the appends of the memory; the six edge kinds (24), the six return kinds (36) and the shelf kinds
+are arguments. -/
 inductive Kind where
   | night
   | aside
@@ -69,6 +73,26 @@ inductive Kind where
   | shelf (s : ShelfKind)
   | heard
   | tool
+  /-- (58) an experience of kind question, addressed to a reader by name -/
+  | question
+  /-- (59) the day's last experience when the individual hands the day to the reader -/
+  | handOver
+  /-- (60) the day's last experience when the individual stops -/
+  | stop
+  /-- (35) the experience of a tool call: what the individual called, with what; a return points to it -/
+  | call
+  /-- (64) act: the recipe named, an experience -/
+  | recipe
+  /-- (64) act: the data given to the recipe, an experience -/
+  | given
+  /-- (64) act: the return, as an experience of the individual -/
+  | outcome
+  /-- (65) a seen info placed by a reader at the head of a day's page: what is wanted -/
+  | task
+  /-- (design record section 15, ruling 8) another individual's say line, copied into the shared part by the room -/
+  | say
+  /-- (62) an info filed by the individual into the shared part of the store, for others to reach -/
+  | filed
   deriving DecidableEq, Repr
 
 /-- (13) Envelope: the name of the writer, the day id of the writing, and a kind. -/
@@ -78,10 +102,11 @@ structure Envelope where
   kind : Kind
   deriving DecidableEq, Repr
 
-/-- The part of an info that its hash covers: everything but the hash itself. Beside the data and the envelope of
-(14) it holds the derivation (23), the history pointer of (18) and the arrival number that realises the one total
-order of the design record, section 2 ("history is the one total order, given by appending").
-Choice: the hash covers all five, so that two infos differing in any of them never share a hash (3). -/
+/-- An info's body: everything but the hash itself. Beside the data and the envelope of (14) it holds the derivation (23), the
+history pointer of (18) and the arrival number that realises the one total order of the design record, section 2 ("history is the
+one total order, given by appending"). Ruling 10 of design record section 15 puts the log's chaining pointer and the arrival
+number outside the hash, as the log's structure, so that the same shelf item has one hash in every memory; here the hash covers
+the data, the envelope and the derivation (`Content`), the derivation being kept in (see the README, choices). -/
 structure Body where
   /-- (2) the data -/
   data : Data
@@ -95,11 +120,25 @@ structure Body where
   seq : Nat
   deriving DecidableEq, Repr
 
-/-- (14) Info: data with an envelope; its hash covers both (and, by the choice above, the rest of `Body`). -/
+/-- (14) What an info's hash covers: its data and its envelope, and the derivation it carries (a derived info is
+data with pointers; two infos that differ in what they were made from are different infos). -/
+structure Content where
+  data : Data
+  env : Envelope
+  pointers : List Pointer
+  deriving DecidableEq, Repr
+
+/-- The content of a body. -/
+def Body.content (b : Body) : Content := ⟨b.data, b.env, b.pointers⟩
+
+/-- (14) Info: data with an envelope; its hash covers both (and the derivation; see `Content`). -/
 structure Info extends Body where
-  /-- (3) the hash of the body -/
+  /-- (3) the hash of the content -/
   hash : Hash
   deriving DecidableEq, Repr
+
+/-- What the hash of an info covers. -/
+abbrev Info.content (i : Info) : Content := i.toBody.content
 
 /-- The writer of an info (13). -/
 abbrev Info.writer (i : Info) : Name := i.env.writer
@@ -110,11 +149,11 @@ abbrev Info.day (i : Info) : DayId := i.env.day
 /-- The kind of an info (13). -/
 abbrev Info.kind (i : Info) : Kind := i.env.kind
 
-/-- (3) Hash function: a name computed from an info's body, so that the same body always has the same hash and
-different bodies never share one. Injectivity is the whole content of "different data never share one"; it is a
+/-- (3) Hash function: a name computed from an info's content, so that the same content always has the same hash and
+different contents never share one. Injectivity is the whole content of "different data never share one"; it is a
 field, so every theorem that needs it takes a `Hasher` and no axiom is assumed. -/
 structure Hasher where
-  h : Body → Hash
+  h : Content → Hash
   injective : ∀ a b, h a = h b → a = b
 
 /-- (16) Span: a pointer with a start and a length in tokens, naming part of an info. -/
@@ -262,8 +301,9 @@ structure RootFrame extends Frame where
   page : Info
   asked : List Info
 
-/-- (48) Meta-frame: the part of a root-frame that carries the root and nothing else: pointers, never experiences. -/
-def RootFrame.meta (f : RootFrame) : List Pointer := f.root.pointers
+/-- (48) Meta-frame: the part of a root-frame that carries the root and nothing else: the copied first lines of the heads
+(the root's data) and the pointers, never whole experiences. -/
+def RootFrame.meta (f : RootFrame) : Data × List Pointer := (f.root.data, f.root.pointers)
 
 /-- (50) Sub-frame: a frame opened by a frame that is a root-frame or a sub-frame; its surrounding context is the
 frame that opened it, and what it writes returns to that frame as an experience carrying a pointer to it. -/
@@ -274,8 +314,42 @@ structure SubFrame where
 /-- (36) Return: an info of a return kind. -/
 def Info.isReturn (i : Info) : Bool := i.kind.isReturn
 
-/-- (14) The size of an info in tokens. Choice: its data, plus one token per pointer it carries. -/
+/-- The size of an info in tokens (a choice; the definitions file gives none). Choice: its data, plus one token per pointer it carries. -/
 def Info.size (i : Info) : Nat := i.data.length + i.pointers.length
+
+/-- (35, design record section 14) The toolkit as a closed list: ten tools. Recall, reach and consider are 53 to 55;
+keeping, ask, hand, stop, relate, file and act are 56 to 64. -/
+inductive ToolId where
+  | recall | reach | consider | keeping | relate | file | act | ask | hand | stop
+  deriving DecidableEq, Repr
+
+/-- The ten tools, as a list. -/
+def ToolId.all : List ToolId :=
+  [.recall, .reach, .consider, .keeping, .relate, .file, .act, .ask, .hand, .stop]
+
+/-- A code for each tool, the first datum of a call. -/
+def ToolId.code : ToolId → Nat
+  | .recall => 0 | .reach => 1 | .consider => 2 | .keeping => 3 | .relate => 4
+  | .file => 5 | .act => 6 | .ask => 7 | .hand => 8 | .stop => 9
+
+/-- (63) Recipe: a name from a closed list, naming steps that run outside every context. A recipe is its number. -/
+abbrev Recipe : Type := Nat
+
+/-- (design record sections 16 and 18b) The policy of a lookup by words: the version of the lexical index, the hash of the
+pinned embedder's file, and the anchor set, a fixed list of shared-store info hashes against which the embedding side
+represents every info. The anchor set is data in the policy, nothing more. -/
+structure Policy where
+  lexVersion : Nat
+  embedderHash : Hash
+  anchors : List Hash
+  deriving DecidableEq, Repr
+
+/-- What identifies a policy: its three parts, as data. A ranker that is pinned depends on the policy only through this. -/
+def Policy.key (p : Policy) : Data := [p.lexVersion, p.embedderHash, p.anchors.length] ++ p.anchors
+
+/-- (design record section 16) The ranker of a lookup by words: an opaque pure function of the log, the words and
+the policy. What it is inside is not modelled; what it returns is. -/
+abbrev Ranker : Type := Memory → Data → Policy → List Info
 
 /-- (30) The fixed numbers of a model of the memory, the knobs of design record section 11: the fan-out `k`, the
 keep cap `c`, the return cap `cap` (B, tokens), and the number of tokens of a head's title that the root shows. -/
@@ -290,16 +364,34 @@ structure Params where
   titleCap : Nat
   /-- a fan-out below two would not shrink a level -/
   hk : 2 ≤ k
-  /-- a cap of zero could not serve anything -/
-  hcap : 1 ≤ cap
+  /-- a return holds its arrival number and at least one more token -/
+  hcap : 2 ≤ cap
+
+/-- The most tokens of a served stream that one return can hold: the cap less the arrival number that opens its data. A
+served stream is paged by this, so that every page fits a return (invariant 7). -/
+def Params.page (p : Params) : Nat := p.cap - 1
 
 /-- The context of a model of the memory: the hash function (3), the name of the model (4), the name of the harness
-that writes roots and groups, and the knobs. -/
+that writes roots and groups, the names of the tools, the knobs, and the ranker with its policy. -/
 structure Ctx where
   H : Hasher
   self : Name
   harness : Name
   harnessNotSelf : harness ≠ self
+  /-- the name of each tool: a return, and the cursor it appends, are written by the tool called -/
+  toolName : ToolId → Name
+  toolNameNotSelf : ∀ t, toolName t ≠ self
+  toolNameNotHarness : ∀ t, toolName t ≠ harness
+  toolNameInjective : ∀ a b, toolName a = toolName b → a = b
   p : Params
+  /-- how long a recipe really takes on some data, in ticks: what the harness cuts short at the recipe's declared
+  bound (64, design record section 18) -/
+  recipeTime : Recipe → Data → Nat
+  /-- the frozen embedder: what represents an info in the vector index, relative to a policy's anchors (opaque) -/
+  embed : Info → Policy → Data
+  /-- the ranker of lookups by words -/
+  ranker : Ranker
+  /-- the policy in force -/
+  policy : Policy
 
 end MemoryArtifact

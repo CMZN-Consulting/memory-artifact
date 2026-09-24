@@ -80,16 +80,9 @@ theorem seq_nodup {Γ : Ctx} {m : Memory} (h : WellFormed Γ m) : (m.all.map (·
 
 end ViewAux
 
-theorem wellFormed_hashes_nodup (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) : m.hashes.Nodup := by
-  have hall : m.all.Nodup := ViewAux.nodup_of_nodup_map (ViewAux.seq_nodup h)
-  unfold Memory.hashes
-  apply ViewAux.nodup_map_of_injOn _ hall
-  intro x hx y hy hxy
-  have hb : x.toBody = y.toBody := by
-    apply Γ.H.injective
-    rw [← h.appendOnly.hashed x hx, ← h.appendOnly.hashed y hy]
-    exact hxy
-  exact ViewAux.info_eq hb hxy
+/-- Distinct hashes: invariant 1 (`AppendOnly.distinct`) says no two infos of the memory share a hash. -/
+theorem wellFormed_hashes_nodup (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) : m.hashes.Nodup :=
+  h.appendOnly.distinct
 
 theorem resolve_of_nodup (m : Memory) (h : m.hashes.Nodup) : ∀ x ∈ m.all, m.resolve x.hash = some x := by
   intro x hx

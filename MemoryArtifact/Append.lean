@@ -7,8 +7,8 @@ import MemoryArtifact.Lemmas.Push
 argument (design record section 13 puts an edge of kind supersedes in all four logs, so the destination is not a
 function of the info). It refuses exactly when an invariant would break: each invariant has a local counterpart
 (`Loc…`), the check the harness makes on the one info being appended against the memory it joins, and
-`wellFormed_push_iff` proves that the local checks together are equivalent to the eight invariants of the memory
-after the push.
+`wellFormed_push_iff` proves that the local checks together are equivalent to the invariants of the memory after the
+push.
 -/
 
 namespace MemoryArtifact
@@ -17,13 +17,20 @@ namespace MemoryArtifact
 
 /-- Why an append is refused: the number of the first invariant (in the order of section 13) that it would break. -/
 inductive Refusal where
-  | appendOnly | resolves | envelope | arity | writers | frame | bounded | refusal
+  | appendOnly | resolves | envelope | arity | writers | frame | bounded | refusal | retire | days | targets | work
   deriving DecidableEq, Repr
 
 /-- The number of the invariant in section 13. -/
 def Refusal.number : Refusal → Nat
   | .appendOnly => 1 | .resolves => 2 | .envelope => 3 | .arity => 4
-  | .writers => 5 | .frame => 6 | .bounded => 7 | .refusal => 8
+  | .writers => 5 | .frame => 6 | .bounded => 7 | .refusal => 8 | .retire => 9 | .days => 10 | .targets => 11
+  | .work => 13
+
+/-- The reasons a refusal return records that are not an invariant: no tool of that name is declared, a return the memory
+would not take (both the harness's), and a tool's own reasons, offset so that they never collide with an invariant's number. -/
+def Refusal.noSuchTool : Nat := 20
+def Refusal.returnRefused : Nat := 21
+def Refusal.toolReason (n : Nat) : Nat := 30 + n
 
 /-- The invariant a refusal names, as a statement about a memory. -/
 def Refusal.holds (Γ : Ctx) (m : Memory) : Refusal → Prop
@@ -35,6 +42,10 @@ def Refusal.holds (Γ : Ctx) (m : Memory) : Refusal → Prop
   | .frame => FrameOk m
   | .bounded => BoundedOk Γ m
   | .refusal => RefusalOk m
+  | .retire => RetireOk m
+  | .days => DaysOk m
+  | .targets => TargetsOk m
+  | .work => WorkOk m
 
 /-- The first local check that fails, if any. -/
 def refusalOf (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) : Option Refusal :=
@@ -46,6 +57,10 @@ def refusalOf (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) : Option Refusal :=
   else if ¬LocFrame m i then some .frame
   else if ¬LocBounded Γ m i then some .bounded
   else if ¬LocRefusal i then some .refusal
+  else if ¬LocRetire m l i then some .retire
+  else if ¬LocDays m l i then some .days
+  else if ¬LocTargets m i then some .targets
+  else if ¬LocWork m i then some .work
   else none
 
 /-- Design record section 13's `append : Memory → Info → Memory ⊕ Refusal`, with the log to append to. Total. A refusal
@@ -65,15 +80,16 @@ structure Draft where
   pointers : List Pointer
 
 /-- Make an info for a log from a draft: the day is the current one (a root opens the next), the history pointer is
-the log's tail, the arrival number is the next, and the hash is the hash of the body. -/
+the log's tail, the arrival number is the next, a numbered kind opens its data with the arrival number, and the hash is
+the hash of the content (the data, the envelope and the derivation). -/
 def mkInfo (Γ : Ctx) (m : Memory) (l : LogId) (d : Draft) : Info :=
   let b : Body :=
-    { data := d.data
+    { data := if d.kind.numbered then m.count :: d.data else d.data
       env := ⟨d.writer, m.today + (if d.kind.isRoot then 1 else 0), d.kind⟩
       pointers := d.pointers
       prev := m.tailHash l
       seq := m.count }
-  { toBody := b, hash := Γ.H.h b }
+  { toBody := b, hash := Γ.H.h b.content }
 
 /-- Append a draft with no check: for the harness's own appends, each proved to pass `Ok`. -/
 def place (Γ : Ctx) (m : Memory) (l : LogId) (d : Draft) : Memory := m.push l (mkInfo Γ m l d)
@@ -84,27 +100,40 @@ def appendDraft (Γ : Ctx) (m : Memory) (l : LogId) (d : Draft) : Memory ⊕ Ref
 
 /-! ## A refusal is itself an append (invariant 8) -/
 
-/-- The return of kind refusal that records a refusal: written by the harness, holding the number of the invariant
-as its reason, re-presenting nothing. -/
-def refusalDraft (Γ : Ctx) (r : Refusal) : Draft :=
-  { writer := Γ.harness, kind := .ret .refusal, data := [r.number], pointers := [] }
+/-- The return of kind refusal that records a refusal of an offered append: written by the harness, holding its reason (the
+number of the invariant it would break, or one of the reasons above), pointing to the newest info of the private store (a
+refusal of a tool call that the memory did record points to the experience of the call instead, `Tools.lean`); when the
+private store is empty there is nothing to point at (a finding). -/
+def refusalDraft (Γ : Ctx) (m : Memory) (reason : Nat) : Draft :=
+  { writer := Γ.harness, kind := .ret .refusal, data := [reason],
+    pointers := (m.storePrivate.getLast?.map (·.hash)).toList }
 
 /-- Leave the refusal in the private store. -/
-def recordRefusal (Γ : Ctx) (m : Memory) (r : Refusal) : Memory :=
-  place Γ m .storePrivate (refusalDraft Γ r)
+def recordRefusal (Γ : Ctx) (m : Memory) (reason : Nat) : Memory :=
+  place Γ m .storePrivate (refusalDraft Γ m reason)
 
 /-- An operation of the memory: an accepted append leaves the memory extended by the info; a refused one leaves a
 return of kind refusal in the private store (invariant 8). -/
 def step (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) : Memory :=
   match append Γ m l i with
   | .inl m' => m'
-  | .inr r => recordRefusal Γ m r
+  | .inr r => recordRefusal Γ m r.number
 
 /-- (18) `m'` extends `m`: every log of `m` is a prefix of the same log of `m'`. -/
 def Memory.Extends (m m' : Memory) : Prop :=
   ∀ l ∈ LogId.all, (m.log l).IsPrefix (m'.log l)
 
 /-! ## Helper lemmas -/
+
+namespace AppendAux
+
+open PushLocalAux
+
+/-- A check that fails refuses, one that passes hands over to the next: the refusal chain is `none` exactly when every
+check passes. -/
+theorem ite_not_some_eq_none {p : Prop} [Decidable p] (a : Refusal) (x : Option Refusal) :
+    ((if ¬p then some a else x) = none) ↔ (p ∧ x = none) := by
+  by_cases hp : p <;> simp [hp]
 
 /-- An append is accepted exactly when no local check fails, and then it pushes the info. -/
 theorem append_eq_of_refusalOf_none {Γ : Ctx} {m : Memory} {l : LogId} {i : Info} (h : refusalOf Γ m l i = none) :
@@ -131,118 +160,66 @@ theorem refusalOf_of_append_inl {Γ : Ctx} {m m' : Memory} {l : LogId} {i : Info
     exact ⟨h', rfl⟩
   · cases ha
 
-/-- The return of kind refusal that `recordRefusal` appends passes every local check of the private store. -/
-theorem ok_refusalDraft (Γ : Ctx) (m : Memory) (r : Refusal) :
-    Ok Γ m .storePrivate (mkInfo Γ m .storePrivate (refusalDraft Γ r)) := by
-  refine ⟨⟨rfl, rfl, rfl⟩, ?_, ⟨rfl, rfl⟩, rfl, ⟨?_, ?_, ?_⟩, ?_, ⟨?_, ?_, ?_⟩, ?_⟩
-  · intro p hp
-    simp [mkInfo, refusalDraft] at hp
-  · intro h; cases h
-  · intro _; exact Γ.harnessNotSelf
-  · intro _; rfl
-  · intro h; cases h
-  · intro _
-    have := Γ.p.hcap
-    simp [mkInfo, refusalDraft]
-    omega
-  · intro h; cases h
-  · intro h
-    simp [mkInfo, refusalDraft, Info.isKeep] at h
-  · intro _
-    simp [mkInfo, refusalDraft]
-
-namespace AppendAux
-
-/-- Appending a root to a list of roots keeps them pointed exactly when the new one points to the last. -/
-theorem rootsPointed_append (rs : List Info) (r : Info) :
-    rootsPointed (rs ++ [r]) =
-      (rootsPointed rs && rs.getLast?.all (fun q => decide (q.hash ∈ r.pointers))) := by
-  induction rs with
-  | nil => simp [rootsPointed]
-  | cons a rs ih =>
-    cases rs with
-    | nil => simp [rootsPointed]
-    | cons b rs =>
-      simp only [List.cons_append, rootsPointed] at ih ⊢
-      rw [ih, List.getLast?_cons_cons, Bool.and_assoc]
-
-/-- Under invariant 1, every info already in the memory arrived before the next arrival number. -/
-theorem seq_lt_count {Γ : Ctx} {m : Memory} (h1 : AppendOnly Γ m) {j : Info} (hj : j ∈ m.all) :
-    j.seq < m.count := by
-  have hm : j.seq ∈ m.all.map (·.seq) := List.mem_map_of_mem hj
-  have := h1.arrivals.mem_iff.1 hm
-  exact List.mem_range.1 this
-
-/-- The info that passes the local check of invariant 1 is not retired in the memory it joins, when every pointer of
-that memory resolves: a supersedes edge points only at an info already there, and the new info's hash is the hash of a
-body with a later arrival number than any of them. (Without invariant 2 a dangling supersedes pointer could name the
-new info in advance.) -/
-theorem not_retired_new (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h1 : AppendOnly Γ m) (h2 : Resolves m)
-    (hl : LocAppendOnly Γ m l i) : ¬m.retired i := by
-  intro hr
-  unfold Memory.retired Memory.retiredPointers at hr
-  obtain ⟨e, he, hd⟩ := List.mem_filterMap.1 hr
-  have he' := (List.mem_filter.1 he).1
-  have he'' := (List.mem_filter.1 he').1
-  have hp : i.hash ∈ e.pointers := by
-    unfold Info.dst at hd
-    exact List.mem_of_getElem? hd
-  obtain ⟨j, hj, hjh, _⟩ := h2 e he'' i.hash hp
-  have hb : j.toBody = i.toBody := Γ.H.injective _ _ (by rw [← h1.hashed j hj, hjh, hl.1])
-  have hs := seq_lt_count h1 hj
-  have hseq : j.seq = i.seq := congrArg Body.seq hb
-  have := hl.2.2
+/-- In a well-formed memory the refusal record the harness builds has a hash no info of the memory has: its data opens
+with the next arrival number, and every numbered info of the memory opens its data with its own, an earlier one. -/
+theorem refusal_hash_fresh (Γ : Ctx) (m : Memory) (hm : WellFormed Γ m) (reason : Nat) :
+    (mkInfo Γ m .storePrivate (refusalDraft Γ m reason)).hash ∉ m.hashes := by
+  intro hmem
+  obtain ⟨j, hj, hjh⟩ := List.mem_map.1 hmem
+  have hc : j.content = (mkInfo Γ m .storePrivate (refusalDraft Γ m reason)).content :=
+    Γ.H.injective _ _ (by rw [← hm.appendOnly.hashed j hj]; exact hjh)
+  have hd : j.data = m.count :: [reason] := by
+    have := congrArg Content.data hc
+    simpa [Info.content, Body.content, mkInfo, refusalDraft, Kind.numbered] using this
+  have hk : j.kind = .ret .refusal := by
+    have := congrArg (fun c => c.env.kind) hc
+    simpa [Info.content, Body.content, mkInfo, refusalDraft] using this
+  have ht := hm.appendOnly.tagged j hj (by rw [hk]; rfl)
+  rw [hd] at ht
+  have hs : j.seq = m.count := by simpa using ht.symm
+  have := seq_lt_count_of_appendOnly hm.appendOnly hj
   omega
 
-/-- The direction of `push_bounded` that `append_refused` needs, for a well-formed memory: after the push invariant 7
-holds only if the local check of invariant 7 passed. It uses invariant 2 of the memory (see `not_retired_new`). -/
-theorem locBounded_of_push (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h : WellFormed Γ m)
-    (hl : LocAppendOnly Γ m l i) (he : Kind.allowedIn l i.kind = true) (hb : BoundedOk Γ (m.push l i)) :
-    LocBounded Γ m i := by
-  obtain ⟨hret, hroot, hrp, hkeep⟩ := hb
-  have hi : i ∈ (m.push l i).all := (mem_all_push m l i i).2 (Or.inr rfl)
-  refine ⟨fun hr => hret i hi hr, fun hk => ⟨hroot i hi hk, ?_⟩, fun hk => ?_⟩
-  · have hisRoot : i.kind.isRoot = true := by rw [hk]; rfl
-    have ha : Kind.allowedIn l .root = true := hk ▸ he
-    have hlp : l = .storePrivate := by
-      cases l <;> first | rfl | exact absurd ha (by decide)
-    rw [roots_push, if_pos ⟨hlp, hisRoot⟩, rootsPointed_append, Bool.and_eq_true] at hrp
-    exact hrp.2
-  · have hk' : i.kind = .keep := by simpa [Info.isKeep] using hk
-    have ha : Kind.allowedIn l .keep = true := hk' ▸ he
-    have hlh : l = .hippocampus := by
-      cases l <;> first | rfl | exact absurd ha (by decide)
-    subst hlh
-    have hnr := not_retired_new Γ m .hippocampus i h.appendOnly h.resolves hl
-    have hret_eq : (m.push .hippocampus i).retiredPointers = m.retiredPointers := by
-      simp [Memory.retiredPointers, Memory.edges, Memory.push, Memory.all, List.filter_append, hk', Kind.isEdge]
-    have hiff : ∀ x, (m.push .hippocampus i).retired x ↔ m.retired x := by
-      intro x
-      unfold Memory.retired
-      rw [hret_eq]
-    have hlk : (m.push .hippocampus i).liveKeeps = m.liveKeeps ++ [i] := by
-      unfold Memory.liveKeeps
-      have hh : (m.push .hippocampus i).hippocampus = m.hippocampus ++ [i] := rfl
-      rw [hh, List.filter_append]
-      congr 1
-      · apply List.filter_congr
-        intro x _
-        simp only [hiff x]
-      · simp [hk, hnr, hiff i]
-    rw [hlk, List.length_append, List.length_singleton] at hkeep
+/-- The return of kind refusal that `recordRefusal` appends passes every local check of the private store, in every
+well-formed memory: it points to the newest info of the private store if there is one (a return points to anything, and
+a refusal's first pointer to anything), and to nothing otherwise (a refusal's arity is any). -/
+theorem ok_refusalDraft (Γ : Ctx) (m : Memory) (hm : WellFormed Γ m) (reason : Nat) :
+    Ok Γ m .storePrivate (mkInfo Γ m .storePrivate (refusalDraft Γ m reason)) := by
+  have hptr : ∀ p ∈ (mkInfo Γ m .storePrivate (refusalDraft Γ m reason)).pointers,
+      ∃ j ∈ m.all, j.hash = p := by
+    intro p hp
+    simp only [mkInfo, refusalDraft, Option.mem_toList, Option.map_eq_some_iff] at hp
+    obtain ⟨j, hj, rfl⟩ := hp
+    exact ⟨j, mem_all_of_mem_storePrivate m j (List.mem_of_getLast? hj), rfl⟩
+  have hplen : (mkInfo Γ m .storePrivate (refusalDraft Γ m reason)).pointers.length ≤ 1 := by
+    simp only [mkInfo, refusalDraft]
+    cases m.storePrivate.getLast? <;> simp
+  refine ⟨⟨rfl, refusal_hash_fresh Γ m hm reason, rfl, rfl, fun _ => rfl⟩, hptr, ⟨rfl, rfl⟩, ?_,
+    ⟨nofun, fun _ _ => Γ.harnessNotSelf, nofun, nofun, fun _ => Or.inr rfl⟩, nofun, ⟨?_, nofun, nofun, ?_⟩,
+    ?_, nofun, nofun, ?_, ⟨nofun, nofun⟩⟩
+  · simp [LocArity, Info.arityOk, mkInfo, refusalDraft, Kind.arity, Arity.ok]
+  · intro _
+    have := Γ.p.hcap
+    refine ⟨?_, by omega⟩
+    simp only [mkInfo, refusalDraft, Kind.numbered, if_true, List.length_cons, List.length_nil]
     omega
+  · intro hk
+    simp [Info.isKeep, mkInfo, refusalDraft] at hk
+  · intro _
+    simp [mkInfo, refusalDraft, Kind.numbered]
+  · intro p hp
+    obtain ⟨j, hj, hjp⟩ := hptr p hp
+    exact ⟨j, hj, hjp, rfl, fun _ => rfl⟩
 
 end AppendAux
+
+open AppendAux
 
 /-! ## Statements -/
 
 theorem refusalOf_eq_none_iff (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) :
     refusalOf Γ m l i = none ↔ Ok Γ m l i := by
-  unfold refusalOf Ok
-  by_cases h1 : LocAppendOnly Γ m l i <;> by_cases h2 : LocResolves m i <;>
-    by_cases h3 : LocEnvelope m l i <;> by_cases h4 : LocArity i <;> by_cases h5 : LocWriters Γ l i <;>
-    by_cases h6 : LocFrame m i <;> by_cases h7 : LocBounded Γ m i <;> by_cases h8 : LocRefusal i <;>
-    simp [h1, h2, h3, h4, h5, h6, h7, h8]
+  simp only [refusalOf, Ok, ite_not_some_eq_none, and_true]
 
 /-- A well-formed memory stays well-formed under any accepted append. -/
 theorem append_wellFormed (Γ : Ctx) (m m' : Memory) (l : LogId) (i : Info) (h : WellFormed Γ m)
@@ -255,39 +232,67 @@ theorem append_refused (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (r : Refus
     (ha : append Γ m l i = .inr r) : ¬r.holds Γ (m.push l i) := by
   have hr := refusalOf_of_append_inr ha
   unfold refusalOf at hr
-  by_cases h1 : LocAppendOnly Γ m l i
-  · by_cases h2 : LocResolves m i
-    · by_cases h3 : LocEnvelope m l i
-      · by_cases h4 : LocArity i
-        · by_cases h5 : LocWriters Γ l i
-          · by_cases h6 : LocFrame m i
-            · by_cases h7 : LocBounded Γ m i
-              · by_cases h8 : LocRefusal i
-                · simp [h1, h2, h3, h4, h5, h6, h7, h8] at hr
-                · simp [h1, h2, h3, h4, h5, h6, h7, h8] at hr
-                  subst hr
-                  exact fun hp => h8 ((push_refusal Γ m l i h.refusal).1 hp)
-              · simp [h1, h2, h3, h4, h5, h6, h7] at hr
-                subst hr
-                exact fun hp => h7 (AppendAux.locBounded_of_push Γ m l i h h1 h3.2 hp)
-            · simp [h1, h2, h3, h4, h5, h6] at hr
-              subst hr
-              exact fun hp => h6 ((push_frame Γ m l i h.appendOnly h.frame h1).1 hp)
-          · simp [h1, h2, h3, h4, h5] at hr
-            subst hr
-            exact fun hp => h5 ((push_writers Γ m l i h.writers).1 hp)
-        · simp [h1, h2, h3, h4] at hr
-          subst hr
-          exact fun hp => h4 ((push_arity Γ m l i h.arity).1 hp)
-      · simp [h1, h2, h3] at hr
-        subst hr
-        exact fun hp => h3 ((push_envelope Γ m l i h.appendOnly h.envelope h1).1 hp)
-    · simp [h1, h2] at hr
-      subst hr
-      exact fun hp => h2 ((push_resolves Γ m l i h.appendOnly h.resolves h1).1 hp)
-  · simp [h1] at hr
-    subst hr
-    exact fun hp => h1 ((push_appendOnly Γ m l i h.appendOnly).1 hp)
+  by_cases c1 : LocAppendOnly Γ m l i
+  case neg =>
+    rw [if_pos c1] at hr; cases hr
+    exact fun hp => c1 ((push_appendOnly Γ m l i h.appendOnly).1 hp)
+  rw [if_neg (not_not_intro c1)] at hr
+  by_cases c2 : LocResolves m i
+  case neg =>
+    rw [if_pos c2] at hr; cases hr
+    exact fun hp => c2 ((push_resolves Γ m l i h.appendOnly h.resolves c1).1 hp)
+  rw [if_neg (not_not_intro c2)] at hr
+  by_cases c3 : LocEnvelope m l i
+  case neg =>
+    rw [if_pos c3] at hr; cases hr
+    exact fun hp => c3 ((push_envelope Γ m l i h.appendOnly h.envelope c1).1 hp)
+  rw [if_neg (not_not_intro c3)] at hr
+  by_cases c4 : LocArity i
+  case neg =>
+    rw [if_pos c4] at hr; cases hr
+    exact fun hp => c4 ((push_arity Γ m l i h.arity).1 hp)
+  rw [if_neg (not_not_intro c4)] at hr
+  by_cases c5 : LocWriters Γ l i
+  case neg =>
+    rw [if_pos c5] at hr; cases hr
+    exact fun hp => c5 ((push_writers Γ m l i h.writers).1 hp)
+  rw [if_neg (not_not_intro c5)] at hr
+  by_cases c6 : LocFrame m i
+  case neg =>
+    rw [if_pos c6] at hr; cases hr
+    exact fun hp => c6 ((push_frame Γ m l i h.appendOnly h.frame c1).1 hp)
+  rw [if_neg (not_not_intro c6)] at hr
+  by_cases c7 : LocBounded Γ m i
+  case neg =>
+    rw [if_pos c7] at hr; cases hr
+    exact fun hp => c7 ((push_bounded Γ m l i h.appendOnly h.resolves h.bounded c1 c3.2).1 hp)
+  rw [if_neg (not_not_intro c7)] at hr
+  by_cases c8 : LocRefusal i
+  case neg =>
+    rw [if_pos c8] at hr; cases hr
+    exact fun hp => c8 ((push_refusal Γ m l i h.refusal).1 hp)
+  rw [if_neg (not_not_intro c8)] at hr
+  by_cases c9 : LocRetire m l i
+  case neg =>
+    rw [if_pos c9] at hr; cases hr
+    exact fun hp => c9 ((push_retire Γ m l i h.appendOnly h.resolves h.retire c1).1 hp)
+  rw [if_neg (not_not_intro c9)] at hr
+  by_cases c10 : LocDays m l i
+  case neg =>
+    rw [if_pos c10] at hr; cases hr
+    exact fun hp => c10 ((push_days Γ m l i h.appendOnly h.days c1).1 hp)
+  rw [if_neg (not_not_intro c10)] at hr
+  by_cases c11 : LocTargets m i
+  case neg =>
+    rw [if_pos c11] at hr; cases hr
+    exact fun hp => c11 ((push_targets Γ m l i h.appendOnly h.targets c1).1 hp)
+  rw [if_neg (not_not_intro c11)] at hr
+  by_cases c12 : LocWork m i
+  case neg =>
+    rw [if_pos c12] at hr; cases hr
+    exact fun hp => c12 ((push_work Γ m l i h.appendOnly h.resolves h.work c1 c2 c3.2).1 hp)
+  rw [if_neg (not_not_intro c12)] at hr
+  cases hr
 
 /-- An append is refused exactly when it would leave the memory ill-formed. -/
 theorem append_refused_iff (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h : WellFormed Γ m) :
@@ -302,15 +307,19 @@ theorem append_refused_iff (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h : W
     | none => exact absurd hr hn
     | some r => exact ⟨r, by simp [append, hr]⟩
 
-/-- A refused append changes nothing: the memory a refusal leaves behind is the one it was offered, plus the return
-of kind refusal that invariant 8 requires, and nothing else. -/
+/-- A refused append changes nothing but the refusal record. -/
 theorem step_refused (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (r : Refusal)
     (ha : append Γ m l i = .inr r) :
-    step Γ m l i = { m with storePrivate := m.storePrivate ++ [mkInfo Γ m .storePrivate (refusalDraft Γ r)] } := by
+    step Γ m l i = { m with storePrivate := m.storePrivate ++ [mkInfo Γ m .storePrivate (refusalDraft Γ m r.number)] } := by
   simp only [step, ha, recordRefusal, place, Memory.push]
 
-/-- The harness's step keeps a well-formed memory well-formed, whether the append is accepted or refused
-(design record section 13: a refusal is itself an append). -/
+/-- The refusal the harness records is well-formed, in every well-formed memory: whatever the reason, the record passes every
+local check. -/
+theorem recordRefusal_wellFormed (Γ : Ctx) (m : Memory) (hm : WellFormed Γ m) (reason : Nat) :
+    WellFormed Γ (recordRefusal Γ m reason) :=
+  (wellFormed_push_iff Γ m .storePrivate _ hm).2 (ok_refusalDraft Γ m hm reason)
+
+/-- The harness's step keeps a well-formed memory well-formed, whether the append is accepted or refused. -/
 theorem step_wellFormed (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h : WellFormed Γ m) :
     WellFormed Γ (step Γ m l i) := by
   cases ha : append Γ m l i with
@@ -318,7 +327,7 @@ theorem step_wellFormed (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h : Well
     simp only [step, ha]
     exact append_wellFormed Γ m m' l i h ha
   | inr r =>
-    simp only [step, ha, recordRefusal, place]
-    exact (wellFormed_push_iff Γ m .storePrivate _ h).2 (ok_refusalDraft Γ m r)
+    simp only [step, ha]
+    exact recordRefusal_wellFormed Γ m h r.number
 
 end MemoryArtifact

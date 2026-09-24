@@ -57,37 +57,41 @@ theorem eraseDups_nodup_length_le :
 
 /-- What a neighbour in a thread is: an entry joined to `h` by a continues edge, in either direction. -/
 theorem mem_threadAdj {m : Memory} {h y : Hash} (hy : y ∈ m.threadAdj h) :
-    y ∈ m.entryHashes ∧ ∃ e ∈ m.edges, e.kind = .edge .continues ∧
+    y ∈ m.entryHashes ∧ ∃ e ∈ m.edges, e.kind = .edge .continues ∧ ¬m.retired e ∧
       ((e.src = some h ∧ e.dst = some y) ∨ (e.src = some y ∧ e.dst = some h)) := by
   unfold Memory.threadAdj at hy
   rw [List.mem_filterMap] at hy
   obtain ⟨e, he, hf⟩ := hy
   rw [List.mem_filter] at he
   obtain ⟨he, hk⟩ := he
-  have hk' : e.kind = .edge .continues := of_decide_eq_true hk
+  have hk' : e.kind = .edge .continues := of_decide_eq_true (Bool.and_eq_true_iff.1 hk).1
+  have hr' : ¬m.retired e := by
+    have := (Bool.and_eq_true_iff.1 hk).2
+    simpa using this
   split at hf
   · rename_i a b hs hd
     by_cases h1 : a = h ∧ b ∈ m.entryHashes
     · rw [if_pos h1] at hf
       cases hf
-      exact ⟨h1.2, e, he, hk', Or.inl ⟨by rw [hs, h1.1], hd⟩⟩
+      exact ⟨h1.2, e, he, hk', hr', Or.inl ⟨by rw [hs, h1.1], hd⟩⟩
     · rw [if_neg h1] at hf
       by_cases h2 : b = h ∧ a ∈ m.entryHashes
       · rw [if_pos h2] at hf
         cases hf
-        exact ⟨h2.2, e, he, hk', Or.inr ⟨hs, by rw [hd, h2.1]⟩⟩
+        exact ⟨h2.2, e, he, hk', hr', Or.inr ⟨hs, by rw [hd, h2.1]⟩⟩
       · rw [if_neg h2] at hf
         cases hf
   · cases hf
 
 /-- A continues edge between `h` and an entry `y`, in either direction, makes `y` a neighbour of `h` in a thread. -/
 theorem mem_threadAdj_of_edge {m : Memory} {h y : Hash} (e : Info) (he : e ∈ m.edges)
-    (hk : e.kind = .edge .continues)
+    (hk : e.kind = .edge .continues) (hr : ¬m.retired e)
     (hor : (e.src = some h ∧ e.dst = some y) ∨ (e.src = some y ∧ e.dst = some h)) (hy : y ∈ m.entryHashes) :
     y ∈ m.threadAdj h := by
   unfold Memory.threadAdj
   rw [List.mem_filterMap]
-  refine ⟨e, List.mem_filter.2 ⟨he, decide_eq_true hk⟩, ?_⟩
+  refine ⟨e, List.mem_filter.2 ⟨he, ?_⟩, ?_⟩
+  · simp [hk, hr]
   rcases hor with ⟨hs, hd⟩ | ⟨hs, hd⟩
   · rw [hs, hd]
     simp [hy]
@@ -101,8 +105,8 @@ theorem mem_threadAdj_of_edge {m : Memory} {h y : Hash} (e : Info) (he : e ∈ m
 theorem threadAdj_symm (m : Memory) :
     ∀ a b, a ∈ m.entryHashes → AdjStep m.threadAdj a b → b ∈ m.entryHashes ∧ AdjStep m.threadAdj b a := by
   intro a b ha hab
-  obtain ⟨hb, e, he, hk, hor⟩ := mem_threadAdj hab
-  refine ⟨hb, mem_threadAdj_of_edge e he hk ?_ ha⟩
+  obtain ⟨hb, e, he, hk, hr, hor⟩ := mem_threadAdj hab
+  refine ⟨hb, mem_threadAdj_of_edge e he hk hr ?_ ha⟩
   rcases hor with h | h
   · exact Or.inr h
   · exact Or.inl h
@@ -110,7 +114,7 @@ theorem threadAdj_symm (m : Memory) :
 /-- The entries are a sublist of the hippocampus, so there are no more of them than infos. -/
 theorem entryHashes_length_le (m : Memory) : m.entryHashes.length ≤ m.count := by
   simp only [Memory.entryHashes, List.length_map, Memory.entries, Memory.count, Memory.all, List.length_append]
-  have := List.length_filter_le (fun i : Info => !i.pointers.isEmpty) m.hippocampus
+  have := List.length_filter_le (fun i : Info => !i.pointers.isEmpty && i.kind.isEntryKind) m.hippocampus
   omega
 
 /-- The thread of any hash contains that hash. -/
@@ -171,7 +175,7 @@ theorem thread_link (m : Memory) (x y : Hash) (hx : x ∈ m.entryHashes) (hy : y
     Steps (Link m) x y := by
   refine ThreadAux.steps_mono ?_ ((mem_thread_iff m x y hx).1 hy)
   intro a b hab
-  obtain ⟨_, e, he, _, hor⟩ := ThreadAux.mem_threadAdj hab
+  obtain ⟨_, e, he, _, _, hor⟩ := ThreadAux.mem_threadAdj hab
   exact ⟨e, he, hor⟩
 
 set_option linter.unusedVariables false in

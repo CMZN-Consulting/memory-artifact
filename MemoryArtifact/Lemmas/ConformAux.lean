@@ -10,27 +10,31 @@ log. Every invariant but the keep cap of invariant 7 descends to a cut (`wellFor
 -/
 
 namespace MemoryArtifact
-
-/-- The infos of the memory that arrived before `n`, each in its log. -/
-def Memory.arrivedBefore (m : Memory) (n : Nat) : Memory :=
-  ⟨m.hippocampus.filter (fun i => decide (i.seq < n)), m.storePrivate.filter (fun i => decide (i.seq < n)),
-    m.storeShared.filter (fun i => decide (i.seq < n)), m.toolkit.filter (fun i => decide (i.seq < n))⟩
-
 namespace ConformanceAux
 
-/-! ## Small facts, kept here so that this file leans only on the public lemmas of the others -/
-
-/-- Every log id is one of the four listed in `LogId.all`. -/
-theorem mem_logIdAll (l : LogId) : l ∈ LogId.all := by
-  cases l <;> simp [LogId.all]
-
-/-- Falling back to nothing changes nothing. -/
-theorem orElse_none {α : Type} (x : Option α) : (x <|> none) = x := by
-  cases x <;> rfl
+/-! ## Small facts -/
 
 /-- Under invariant 1, every arrival number is below the count. -/
 theorem seq_lt_count {Γ : Ctx} {m : Memory} (h : AppendOnly Γ m) {x : Info} (hx : x ∈ m.all) : x.seq < m.count :=
   List.mem_range.1 (h.arrivals.mem_iff.1 (List.mem_map_of_mem hx))
+
+/-- A function whose image of a list has no duplicates is injective on that list. -/
+theorem inj_on_of_nodup_map {α β : Type} {f : α → β} :
+    ∀ {l : List α}, (l.map f).Nodup → ∀ {a b : α}, a ∈ l → b ∈ l → f a = f b → a = b
+  | [], _, _, _, ha, _, _ => absurd ha List.not_mem_nil
+  | x :: l, h, a, b, ha, hb, hab => by
+    rw [List.map_cons, List.nodup_cons] at h
+    obtain ⟨hx, hl⟩ := h
+    rcases List.mem_cons.mp ha with h1 | h1 <;> rcases List.mem_cons.mp hb with h2 | h2
+    · exact h1.trans h2.symm
+    · subst h1; exact absurd (List.mem_map.mpr ⟨b, h2, hab.symm⟩) hx
+    · subst h2; exact absurd (List.mem_map.mpr ⟨a, h1, hab⟩) hx
+    · exact inj_on_of_nodup_map hl h1 h2 hab
+
+/-- Two infos of a memory with the same hash are the same info. -/
+theorem info_eq_of_hash {Γ : Ctx} {m : Memory} (h : AppendOnly Γ m) {x y : Info} (hx : x ∈ m.all) (hy : y ∈ m.all)
+    (e : x.hash = y.hash) : x = y :=
+  inj_on_of_nodup_map h.distinct hx hy e
 
 /-! ## Memories and their logs -/
 
@@ -71,7 +75,7 @@ theorem arrivedBefore_of_forall_lt (m : Memory) (n : Nat) (h : ∀ x ∈ m.all, 
   intro l
   rw [log_arrivedBefore, List.filter_eq_self]
   intro a ha
-  exact decide_eq_true (h a ((mem_all_iff_mem_log m a).2 ⟨l, mem_logIdAll l, ha⟩))
+  exact decide_eq_true (h a ((mem_all_iff_mem_log m a).2 ⟨l, PushBasicAux.logId_mem_all l, ha⟩))
 
 theorem arrivedBefore_count (Γ : Ctx) (m : Memory) (h : AppendOnly Γ m) : m.arrivedBefore m.count = m :=
   arrivedBefore_of_forall_lt m m.count (fun _ hx => seq_lt_count h hx)
@@ -196,7 +200,7 @@ theorem arrivedBefore_succ (Γ : Ctx) (m : Memory) (h : AppendOnly Γ m) (l : Lo
   by_cases e : l' = l
   · subst e
     rw [log_push_self, log_arrivedBefore, log_arrivedBefore]
-    exact filter_lt_succ _ (h.increasing l' (mem_logIdAll l')) i hi n hn
+    exact filter_lt_succ _ (h.increasing l' (PushBasicAux.logId_mem_all l')) i hi n hn
   · rw [log_push_other _ l l' i e, log_arrivedBefore, log_arrivedBefore]
     apply List.filter_congr
     intro x hx
@@ -218,16 +222,59 @@ theorem roots_arrivedBefore (m : Memory) (n : Nat) :
   intro x _
   exact Bool.and_comm _ _
 
+/-- A list is searched the same way by two predicates that agree on it. -/
+theorem find?_congr_mem {α : Type} (f g : α → Bool) :
+    ∀ l : List α, (∀ x ∈ l, f x = g x) → l.find? f = l.find? g
+  | [], _ => rfl
+  | a :: l, h => by
+    simp only [List.find?_cons]
+    rw [h a List.mem_cons_self, find?_congr_mem f g l (fun x hx => h x (List.mem_cons_of_mem _ hx))]
+
+/-- The pointers of an info of a cut name a task in the cut exactly when they name one in the memory: a pointer resolves to
+an earlier info, which is in the cut. -/
+theorem isTaskPtr_arrivedBefore {Γ : Ctx} {m : Memory} (h : WellFormed Γ m) (n : Nat) {i : Info}
+    (hi : i ∈ (m.arrivedBefore n).all) {p : Pointer} (hp : p ∈ i.pointers) :
+    (m.arrivedBefore n).isTaskPtr p = m.isTaskPtr p := by
+  obtain ⟨hi', hin⟩ := (mem_all_arrivedBefore m n i).1 hi
+  obtain ⟨j', hj', hjh, hjs⟩ := h.resolves i hi' p hp
+  cases hm : m.isTaskPtr p
+  · cases hc : (m.arrivedBefore n).isTaskPtr p
+    · rfl
+    · exfalso
+      unfold Memory.isTaskPtr at hc hm
+      rw [List.any_eq_true] at hc
+      obtain ⟨j, hj, hjb⟩ := hc
+      have : m.all.any (fun j => j.hash == p && decide (j.kind = .task)) = true :=
+        List.any_eq_true.2 ⟨j, ((mem_all_arrivedBefore m n j).1 hj).1, hjb⟩
+      rw [hm] at this
+      exact Bool.false_ne_true this
+  · unfold Memory.isTaskPtr at hm ⊢
+    rw [List.any_eq_true] at hm ⊢
+    obtain ⟨j, hj, hjb⟩ := hm
+    have hjh' : j.hash = p := by simpa using (Bool.and_eq_true_iff.1 hjb).1
+    have : j = j' := info_eq_of_hash h.appendOnly hj hj' (hjh'.trans hjh.symm)
+    subst this
+    exact ⟨j, (mem_all_arrivedBefore m n j).2 ⟨hj, by omega⟩, hjb⟩
+
+/-- The task a page of a cut carries is the task it carries in the memory. -/
+theorem taskHead_arrivedBefore {Γ : Ctx} {m : Memory} (h : WellFormed Γ m) (n : Nat) {pg : Info}
+    (hpg : pg ∈ (m.arrivedBefore n).all) : (m.arrivedBefore n).taskHead pg = m.taskHead pg := by
+  unfold Memory.taskHead
+  exact find?_congr_mem _ _ _ (fun p hp => isTaskPtr_arrivedBefore h n hpg hp)
+
 /-- A cut of a well-formed memory is well-formed, provided the keeps that stand in it are within the cap: every
 invariant but the keep cap of invariant 7 speaks only of earlier infos, so it descends to a cut. The keep cap does not:
 a supersedes edge that arrives later can bring the live keeps of the whole memory back under the cap. -/
 theorem wellFormed_arrivedBefore (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (n : Nat)
     (hk : (m.arrivedBefore n).liveKeeps.length ≤ Γ.p.c) : WellFormed Γ (m.arrivedBefore n) := by
   have h1 := h.appendOnly
-  refine ⟨⟨?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · -- hashed
     intro i hi
     exact h1.hashed i ((mem_all_arrivedBefore m n i).1 hi).1
+  · -- distinct
+    rw [all_arrivedBefore]
+    exact h1.distinct.sublist (List.filter_sublist.map _)
   · -- chained: a cut log is a prefix of the log
     intro l hl
     unfold Chained
@@ -253,6 +300,9 @@ theorem wellFormed_arrivedBefore (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (
     intro l hl
     rw [log_arrivedBefore]
     exact (h1.increasing l hl).filter _
+  · -- tagged
+    intro i hi hn
+    exact h1.tagged i ((mem_all_arrivedBefore m n i).1 hi).1 hn
   · -- resolves
     intro i hi p hp
     obtain ⟨hi', hin⟩ := (mem_all_arrivedBefore m n i).1 hi
@@ -282,8 +332,8 @@ theorem wellFormed_arrivedBefore (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (
   · -- frame
     intro i hi hpage
     obtain ⟨hi', hin⟩ := (mem_all_arrivedBefore m n i).1 hi
-    obtain ⟨hf1, hf2⟩ := h.frame i hi' hpage
-    refine ⟨?_, ?_⟩
+    obtain ⟨hf1, hf2, hf3⟩ := h.frame i hi' hpage
+    refine ⟨?_, ?_, ?_⟩
     · intro p hp
       obtain ⟨j, hj, hjh, hjs⟩ := hf1 p hp
       refine ⟨j, ?_, hjh, hjs⟩
@@ -292,30 +342,73 @@ theorem wellFormed_arrivedBefore (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (
       · exact List.mem_append.2 (Or.inr ((mem_log_arrivedBefore m n .storeShared j).2 ⟨hj, by omega⟩))
     · intro j hj hjp hjd
       exact hf2 j ((mem_all_arrivedBefore m n j).1 hj).1 hjp hjd
+    · intro p hp q hq hpt hqt
+      rw [isTaskPtr_arrivedBefore h n hi hp] at hpt
+      rw [isTaskPtr_arrivedBefore h n hi hq] at hqt
+      exact hf3 p hp q hq hpt hqt
   · -- bounded
-    obtain ⟨hb1, hb2, hb3, _⟩ := h.bounded
-    refine ⟨?_, ?_, ?_, hk⟩
+    obtain ⟨hb1, hb2, hb3, hb4, _⟩ := h.bounded
+    refine ⟨?_, ?_, ?_, ?_, hk⟩
     · intro i hi
       exact hb1 i ((mem_all_arrivedBefore m n i).1 hi).1
     · intro i hi
       exact hb2 i ((mem_all_arrivedBefore m n i).1 hi).1
+    · intro i hi
+      exact hb3 i ((mem_all_arrivedBefore m n i).1 hi).1
     · rw [roots_arrivedBefore]
       have hinc : m.roots.Pairwise (fun a b => a.seq < b.seq) :=
-        (h1.increasing .storePrivate (mem_logIdAll _)).sublist List.filter_sublist
+        (h1.increasing .storePrivate (PushBasicAux.logId_mem_all _)).sublist List.filter_sublist
       obtain ⟨B, hB⟩ := filter_lt_prefix n m.roots hinc
       apply rootsPointed_append_left _ B
       rw [← hB]
-      exact hb3
+      exact hb4
   · -- refusal
     intro i hi
     exact h.refusal i ((mem_all_arrivedBefore m n i).1 hi).1
+  · -- retire
+    intro e he hke b hb hx
+    obtain ⟨he', hen⟩ := (mem_all_arrivedBefore m n e).1 he
+    obtain ⟨x, hx1, hx2⟩ := hx
+    have hx' : x ∈ m.hippocampus := ((mem_log_arrivedBefore m n .hippocampus x).1 hx1).1
+    exact (mem_log_arrivedBefore m n .hippocampus e).2 ⟨h.retire e he' hke b hb ⟨x, hx', hx2⟩, hen⟩
+  · -- days
+    obtain ⟨d1, d2, d3⟩ := h.days
+    refine ⟨?_, ?_, ?_⟩
+    · intro i hi
+      exact d1 i ((mem_log_arrivedBefore m n .hippocampus i).1 hi).1
+    · intro i hi j hj hin hjn hd
+      exact d2 i ((mem_log_arrivedBefore m n .hippocampus i).1 hi).1 j
+        ((mem_log_arrivedBefore m n .hippocampus j).1 hj).1 hin hjn hd
+    · intro i hi j hj hjk hd hlt
+      exact d3 i ((mem_log_arrivedBefore m n .hippocampus i).1 hi).1 j
+        ((mem_log_arrivedBefore m n .hippocampus j).1 hj).1 hjk hd hlt
+  · -- targets
+    intro i hi p hp
+    obtain ⟨hi', hin⟩ := (mem_all_arrivedBefore m n i).1 hi
+    obtain ⟨j, hj, hjh, hjs, hk1, hk2⟩ := h.targets i hi' p hp
+    exact ⟨j, (mem_all_arrivedBefore m n j).2 ⟨hj, by omega⟩, hjh, hjs, hk1, hk2⟩
+  · -- work
+    intro i hi hct pg hpg hkp hd
+    obtain ⟨hi', hin⟩ := (mem_all_arrivedBefore m n i).1 hi
+    obtain ⟨hpg', hpgn⟩ := (mem_log_arrivedBefore m n .storePrivate pg).1 hpg
+    have hpga : pg ∈ (m.arrivedBefore n).all :=
+      (mem_all_arrivedBefore m n pg).2 ⟨(mem_all_iff_mem_log m pg).2 ⟨.storePrivate, PushBasicAux.logId_mem_all _, hpg'⟩, hpgn⟩
+    rw [taskHead_arrivedBefore h n hpga]
+    exact h.work i hi' hct pg hpg' hkp hd
 
 /-! ## Replaying consecutive arrivals climbs the cuts -/
 
 /-- An append that the local checks accept is a push. -/
+theorem append_of_ok {Γ : Ctx} {m : Memory} {l : LogId} {i : Info} (hok : Ok Γ m l i) :
+    append Γ m l i = .inl (m.push l i) := by
+  have h := (refusalOf_eq_none_iff Γ m l i).2 hok
+  unfold append
+  rw [h]
+
+/-- An append that the local checks accept is a push. -/
 theorem step_of_ok {Γ : Ctx} {m : Memory} {l : LogId} {i : Info} (hok : Ok Γ m l i) : step Γ m l i = m.push l i := by
   unfold step
-  rw [append_eq_of_refusalOf_none ((refusalOf_eq_none_iff Γ m l i).2 hok)]
+  rw [append_of_ok hok]
 
 /-- Replaying, from the cut at `k`, infos of consecutive arrival numbers `k, k + 1, ...`, each offered to its own log,
 reaches the cut after them, provided every cut is well-formed. -/
@@ -323,7 +416,7 @@ theorem foldl_run_arrivedBefore (Γ : Ctx) (m : Memory) (h : AppendOnly Γ m)
     (hpre : ∀ n, WellFormed Γ (m.arrivedBefore n)) :
     ∀ (T : List (LogId × Info)) (k : Nat), (∀ p ∈ T, p.2 ∈ m.log p.1) →
       T.map (·.2.seq) = List.range' k T.length →
-      (T.map (fun p => Op.append p.1 p.2)).foldl (Op.run Γ) (m.arrivedBefore k) = m.arrivedBefore (k + T.length)
+      (T.map (fun p => Op.offer p.1 p.2)).foldl (Op.run Γ) (m.arrivedBefore k) = m.arrivedBefore (k + T.length)
   | [], k, _, _ => by simp
   | (l, i) :: T, k, hmem, hseq => by
     rw [List.map_cons, List.length_cons, List.range'_succ, List.cons.injEq] at hseq
@@ -343,12 +436,36 @@ theorem foldl_run_arrivedBefore (Γ : Ctx) (m : Memory) (h : AppendOnly Γ m)
     congr 1
     omega
 
-/-- A list of numbers sorted by `≤` that is a permutation of `0..c-1` is `0..c-1`. -/
-theorem eq_range_of_perm_sorted (L : List Nat) (c : Nat) (hs : L.Pairwise (· ≤ ·)) (hp : L.Perm (List.range c)) :
-    L = List.range c :=
-  hp.eq_of_pairwise (fun _ _ _ _ h1 h2 => Nat.le_antisymm h1 h2) hs List.pairwise_le_range
+/-! ## What the hashes of a log pin -/
 
-/-! ## The keep cap on every cut of a memory the harness reached -/
+/-- Two logs whose infos are hashed, with the same hashes in the same order, hold the same content in the same order. -/
+theorem content_map_eq (Γ : Ctx) : ∀ (L L' : Log), (∀ i ∈ L, i.hash = Γ.H.h i.content) →
+    (∀ i ∈ L', i.hash = Γ.H.h i.content) → L.map (·.hash) = L'.map (·.hash) →
+    L.map Info.content = L'.map Info.content
+  | [], [], _, _, _ => rfl
+  | [], _ :: _, _, _, h => by simp at h
+  | _ :: _, [], _, _, h => by simp at h
+  | a :: L, b :: L', ha, hb, h => by
+    simp only [List.map_cons, List.cons.injEq] at h ⊢
+    refine ⟨Γ.H.injective _ _ ?_, content_map_eq Γ L L' (fun i hi => ha i (List.mem_cons_of_mem _ hi))
+      (fun i hi => hb i (List.mem_cons_of_mem _ hi)) h.2⟩
+    rw [← ha a List.mem_cons_self, ← hb b List.mem_cons_self]
+    exact h.1
+
+/-- Two hash-chained logs with the same hashes in the same order carry the same history pointers. -/
+theorem prev_map_eq : ∀ (pv : Option Pointer) (L L' : Log), chainedFrom pv L = true → chainedFrom pv L' = true →
+    L.map (·.hash) = L'.map (·.hash) → L.map (·.prev) = L'.map (·.prev)
+  | _, [], [], _, _, _ => rfl
+  | _, [], _ :: _, _, _, h => by simp at h
+  | _, _ :: _, [], _, _, h => by simp at h
+  | pv, a :: L, b :: L', ha, hb, h => by
+    simp only [List.map_cons, List.cons.injEq] at h ⊢
+    simp only [chainedFrom, Bool.and_eq_true, decide_eq_true_eq] at ha hb
+    refine ⟨ha.1.trans hb.1.symm, ?_⟩
+    have hab : some a.hash = some b.hash := congrArg some h.1
+    exact prev_map_eq (some a.hash) L L' ha.2 (hab ▸ hb.2) h.2
+
+/-! ## Cuts of a memory reached by a chain of accepted pushes -/
 
 /-- Pushing an info of arrival number at least `n` leaves the cut at `n` as it was. -/
 theorem arrivedBefore_push_of_le (m : Memory) (l : LogId) (j : Info) (n : Nat) (hn : n ≤ j.seq) :
@@ -362,91 +479,110 @@ theorem arrivedBefore_push_of_le (m : Memory) (l : LogId) (j : Info) (n : Nat) (
     simp [this]
   · rw [log_arrivedBefore, log_arrivedBefore, log_push_other _ l l' j e]
 
-/-- Adding infos that are not edges to the private store leaves the live keeps as they were. -/
-theorem liveKeeps_eq_of_adds (M M' : Memory) (X : List Info) (hh : M'.hippocampus = M.hippocampus)
-    (hs : M'.storeShared = M.storeShared) (ht : M'.toolkit = M.toolkit) (hp : M'.storePrivate = M.storePrivate ++ X)
-    (hX : ∀ x ∈ X, x.kind.isEdge = false) : M'.liveKeeps = M.liveKeeps := by
-  have hX' : X.filter (fun i => i.kind.isEdge) = [] :=
-    List.filter_eq_nil_iff.2 (fun x hx => by simp [hX x hx])
-  have he : M'.edges = M.edges := by
-    simp only [Memory.edges, Memory.all, hh, hs, ht, hp, List.filter_append, hX', List.append_nil]
-  unfold Memory.liveKeeps
-  rw [hh]
-  apply List.filter_congr
-  intro x _
-  have hr : M'.retired x ↔ M.retired x := by
-    unfold Memory.retired Memory.retiredPointers
-    rw [he]
-  simp only [hr]
+/-- The cuts of a memory reached from a well-formed one by a chain of accepted pushes: those at or below the old count are the
+old cuts, and those at or above it are memories of the chain, that is, reached from the old one by a shorter chain. -/
+theorem chain_cuts (Γ : Ctx) {M M' : Memory} (hc : Memory.Chain Γ M M') :
+    WellFormed Γ M → ∀ n, (n ≤ M.count → M'.arrivedBefore n = M.arrivedBefore n) ∧
+      (M.count ≤ n → ∃ M₁, Memory.Chain Γ M M₁ ∧ M'.arrivedBefore n = M₁) := by
+  induction hc with
+  | refl m =>
+    intro hM n
+    refine ⟨fun _ => rfl, fun hn => ⟨m, Memory.Chain.refl m, ?_⟩⟩
+    exact arrivedBefore_of_forall_lt m n (fun x hx => Nat.lt_of_lt_of_le (seq_lt_count hM.appendOnly hx) hn)
+  | @push m m'' l i hok rest ih =>
+    intro hM n
+    have hM2 : WellFormed Γ (m.push l i) := (wellFormed_push_iff Γ m l i hM).2 hok
+    have hseq : i.seq = m.count := hok.1.2.2.2.1
+    have hcnt : (m.push l i).count = m.count + 1 := count_push m l i
+    have hlow : n ≤ m.count → m''.arrivedBefore n = m.arrivedBefore n := fun hn => by
+      rw [(ih hM2 n).1 (by omega), arrivedBefore_push_of_le m l i n (by omega)]
+    refine ⟨hlow, fun hn => ?_⟩
+    by_cases he : n = m.count
+    · subst he
+      refine ⟨m, Memory.Chain.refl _, ?_⟩
+      rw [hlow (Nat.le_refl _), arrivedBefore_count Γ _ hM.appendOnly]
+    · obtain ⟨M₁, hch, hcut⟩ := (ih hM2 n).2 (by omega)
+      exact ⟨M₁, Memory.Chain.push l i hok hch, hcut⟩
 
-/-- A step of the harness pushes one info, of the next arrival number. -/
-theorem step_eq_push (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) :
-    ∃ l' j, step Γ m l i = m.push l' j ∧ j.seq = m.count := by
-  unfold step
-  split
-  · rename_i m' ha
-    obtain ⟨hr, rfl⟩ := refusalOf_of_append_inl ha
-    exact ⟨l, i, rfl, ((refusalOf_eq_none_iff Γ m l i).1 hr).1.2.2⟩
-  · rename_i r _
-    exact ⟨.storePrivate, mkInfo Γ m .storePrivate (refusalDraft Γ r), rfl, rfl⟩
-
-/-- The keep cap holds on every cut after a push of the next arrival number that leaves the memory well-formed, if it
-held on every cut before. -/
-theorem keepsCapped_push (Γ : Ctx) (m : Memory) (l : LogId) (j : Info) (h1 : AppendOnly Γ m)
-    (hw : WellFormed Γ (m.push l j)) (hj : j.seq = m.count) (hk : ∀ n, (m.arrivedBefore n).liveKeeps.length ≤ Γ.p.c) :
-    ∀ n, ((m.push l j).arrivedBefore n).liveKeeps.length ≤ Γ.p.c := by
+/-- Every cut of a memory reached by a chain from a well-formed memory with well-formed cuts is well-formed. -/
+theorem chain_cuts_wellFormed (Γ : Ctx) {M M' : Memory} (hc : Memory.Chain Γ M M') (hM : WellFormed Γ M)
+    (hcuts : ∀ n, WellFormed Γ (M.arrivedBefore n)) : ∀ n, WellFormed Γ (M'.arrivedBefore n) := by
   intro n
-  by_cases hn : n ≤ m.count
-  · rw [arrivedBefore_push_of_le m l j n (by omega)]
-    exact hk n
-  · have hall : ∀ x ∈ (m.push l j).all, x.seq < n := by
-      intro x hx
-      rcases (mem_all_push m l j x).1 hx with hx | rfl
-      · have := seq_lt_count h1 hx
-        omega
-      · omega
-    rw [arrivedBefore_of_forall_lt _ n hall]
-    exact hw.bounded.2.2.2
+  by_cases hn : n ≤ M.count
+  · rw [(chain_cuts Γ hc hM n).1 hn]
+    exact hcuts n
+  · obtain ⟨M₁, hch, hcut⟩ := (chain_cuts Γ hc hM n).2 (by omega)
+    rw [hcut]
+    exact hch.wellFormed hM
 
-/-- Starting a day adds no keep and no edge, so the live keeps of every cut are those of the cut before. -/
-theorem liveKeeps_startDay_arrivedBefore (Γ : Ctx) (m : Memory) (n : Nat) :
-    ((startDay Γ m).arrivedBefore n).liveKeeps = (m.arrivedBefore n).liveKeeps := by
-  obtain ⟨hh, hs, ht, added, hp, hadd⟩ : GroupExt m (m.grouped Γ).mem := climb_groupExt Γ _ m _ 0
-  rw [startDay_eq_push]
-  apply liveKeeps_eq_of_adds _ _ ((added ++ [root Γ m]).filter (fun i => decide (i.seq < n)))
-  · show ((m.grouped Γ).mem.hippocampus).filter _ = m.hippocampus.filter _
-    rw [hh]
-  · show ((m.grouped Γ).mem.storeShared).filter _ = m.storeShared.filter _
-    rw [hs]
-  · show ((m.grouped Γ).mem.toolkit).filter _ = m.toolkit.filter _
-    rw [ht]
-  · show ((m.grouped Γ).mem.storePrivate ++ [root Γ m]).filter _ = m.storePrivate.filter _ ++ _
-    rw [hp, List.append_assoc, List.filter_append]
-  · intro x hx
-    rw [List.mem_filter, List.mem_append, List.mem_singleton] at hx
-    rcases hx.1 with hx | rfl
-    · rw [show x.kind = .group from hadd x hx]
-      rfl
-    · rw [root_kind]
-      rfl
+/-! ## The memories the harness reaches: their cuts, and their roots -/
 
-/-- In a memory the harness reached, the keeps that stand in every cut are within the cap. -/
-theorem derivable_keepsCapped (Γ : Ctx) (m : Memory) (h : Derivable Γ m) :
-    ∀ n, (m.arrivedBefore n).liveKeeps.length ≤ Γ.p.c := by
+/-- The empty memory cut anywhere is the empty memory. -/
+theorem arrivedBefore_empty (n : Nat) : Memory.empty.arrivedBefore n = Memory.empty := by
+  simp [Memory.arrivedBefore, Memory.empty]
+
+/-- Extending is transitive. -/
+theorem extends_trans {a b c : Memory} (h : a.Extends b) (h' : b.Extends c) : a.Extends c :=
+  fun l hl => (h l hl).trans (h' l hl)
+
+/-- What a caller may offer is never a root: only a start of day writes a root. -/
+theorem offerable_not_root {l : LogId} {k : Kind} (h : Kind.offerableIn l k = true) : k.isRoot = false := by
+  cases l <;> cases k <;> simp_all [Kind.offerableIn, Kind.isRoot]
+
+/-- Every cut of a memory the harness reached is well-formed, the keep cap of invariant 7 included: an operation of the
+harness is a chain of accepted pushes, and every memory of the chain is well-formed. -/
+theorem derivable_cuts_wellFormed (Γ : Ctx) (m : Memory) (h : Derivable Γ m) :
+    ∀ n, WellFormed Γ (m.arrivedBefore n) := by
   induction h with
   | empty =>
     intro n
-    simp [Memory.arrivedBefore, Memory.empty, Memory.liveKeeps]
-  | step l i hr hg hd ih =>
-    obtain ⟨l', j, heq, hj⟩ := step_eq_push Γ _ l i
-    have hw := derivable_wellFormed Γ _ (Derivable.step l i hr hg hd)
-    rw [heq] at hw ⊢
-    exact keepsCapped_push Γ _ l' j (derivable_wellFormed Γ _ hd).appendOnly hw hj ih
-  | startDay _ ih =>
-    intro n
-    rw [liveKeeps_startDay_arrivedBefore]
-    exact ih n
+    rw [arrivedBefore_empty]
+    exact wellFormed_empty Γ
+  | @offer m l i hk hd ih =>
+    have hw := derivable_wellFormed Γ m hd
+    exact chain_cuts_wellFormed Γ (step_chain Γ m l i hw) hw ih
+  | @tool m c hd ih =>
+    have hw := derivable_wellFormed Γ m hd
+    exact chain_cuts_wellFormed Γ (toolStep_chain0 Γ m hw c).toChain hw ih
+  | @newDay m hd ih =>
+    have hw := derivable_wellFormed Γ m hd
+    exact chain_cuts_wellFormed Γ (startDay_chain Γ m hw) hw ih
+
+/-! ## What an append leaves behind -/
+
+/-- An accepted append pushes the info, and no local check failed. -/
+theorem append_inl_eq {Γ : Ctx} {m m' : Memory} {l : LogId} {i : Info} (h : append Γ m l i = .inl m') :
+    m' = m.push l i ∧ refusalOf Γ m l i = none := by
+  unfold append at h
+  split at h
+  · rename_i hr
+    cases h
+    exact ⟨rfl, hr⟩
+  · cases h
+
+/-- An accepted `tryDraft` is a push of the info built from the draft. -/
+theorem tryDraft_push {Γ : Ctx} {m : Memory} {l : LogId} {d : Draft} {m' : Memory} {h : Hash}
+    (ht : tryDraft Γ m l d = some (m', h)) : m' = m.push l (mkInfo Γ m l d) ∧ h = (mkInfo Γ m l d).hash := by
+  unfold tryDraft at ht
+  split at ht
+  · rename_i m'' ha
+    obtain ⟨rfl, -⟩ := append_inl_eq ha
+    cases ht
+    exact ⟨rfl, rfl⟩
+  · cases ht
+
+/-- A step is an accepted push of the info, or the refusal record. -/
+theorem step_cases (Γ : Ctx) (M : Memory) (l : LogId) (i : Info) :
+    (Ok Γ M l i ∧ step Γ M l i = M.push l i) ∨
+      ∃ n, step Γ M l i = M.push .storePrivate (mkInfo Γ M .storePrivate (refusalDraft Γ M n)) := by
+  cases ha : append Γ M l i with
+  | inl m' =>
+    obtain ⟨rfl, hr⟩ := append_inl_eq ha
+    left
+    exact ⟨(refusalOf_eq_none_iff Γ M l i).1 hr, by unfold step; rw [ha]⟩
+  | inr r =>
+    right
+    exact ⟨r.number, by unfold step; rw [ha]; rfl⟩
 
 end ConformanceAux
-
 end MemoryArtifact

@@ -1,44 +1,170 @@
-import MemoryArtifact.Lemmas.WitnessAux
+import MemoryArtifact.Conformance
 
 /-!
-# Witnesses: the literal reading of Theorem 2 is false; the theorems are not vacuous
+# Witnesses: the counterexamples, the named hypotheses are neither empty nor unneeded, and the theorems are not vacuous
 -/
 
 namespace MemoryArtifact
 
 /-- A tool declared by the desk before the writer's first day. -/
 def toolInfo (Γ : Ctx) : Info :=
-  mkInfo Γ Memory.empty .toolkit { writer := Γ.self + 1, kind := .tool, data := [], pointers := [] }
+  mkInfo Γ Memory.empty .toolkit { writer := Γ.self + 1, kind := .tool, data := [ToolId.recall.code], pointers := [] }
 
 /-- The memory holding only that tool. -/
 def toolMem (Γ : Ctx) : Memory := Memory.empty.push .toolkit (toolInfo Γ)
 
-/-- The tool passes every local check of the toolkit: offering it to the empty memory is accepted. -/
-theorem toolMem_step (Γ : Ctx) : step Γ Memory.empty .toolkit (toolInfo Γ) = toolMem Γ := by
+/-! ## Memories of one info, built by one accepted offer to the empty memory -/
+
+namespace Lone
+
+/-- An offer that passes every local check is not refused. -/
+theorem refusalOf_none_of_ok {Γ : Ctx} {m : Memory} {l : LogId} {i : Info} (h : Ok Γ m l i) :
+    refusalOf Γ m l i = none := by
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12⟩ := h
+  simp only [refusalOf, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, not_true_eq_false, if_false]
+
+/-- An offer that passes every local check is accepted: the step is the push. -/
+theorem step_of_ok {Γ : Ctx} {m : Memory} {l : LogId} {i : Info} (h : Ok Γ m l i) : step Γ m l i = m.push l i := by
+  simp only [step, append, refusalOf_none_of_ok h]
+
+/-- The tool declaration passes every local check of the toolkit of the empty memory. -/
+theorem toolInfo_ok (Γ : Ctx) : Ok Γ Memory.empty .toolkit (toolInfo Γ) := by
   have hw : Γ.self + 1 ≠ Γ.self := Nat.succ_ne_self _
-  simp only [step, append, refusalOf, LocAppendOnly, toolInfo, mkInfo, Memory.today, Kind.isRoot, Memory.all,
-    Memory.empty, List.append_nil, List.filter_nil, List.length_nil, Bool.false_eq_true, ↓reduceIte, Nat.add_zero,
-    Memory.tailHash, Memory.log, List.getLast?_nil, Option.map_none, Memory.count, and_self, not_true_eq_false,
-    LocResolves, List.not_mem_nil, false_and, exists_false, imp_self, implies_true, LocEnvelope, Kind.allowedIn,
-    LocArity, Info.arityOk, Arity.ok, Kind.arity, Bool.and_self, LocWriters, reduceCtorEq, hw, ne_eq, not_false_eq_true,
-    Kind.harnessOnly, false_implies, LocFrame, not_and, LocBounded, Info.isReturn, Kind.isReturn, Nat.zero_le,
-    decide_false, Option.all_false, Option.isNone_iff_eq_none, List.getLast?_eq_none_iff, Info.isKeep, LocRefusal,
-    toolMem]
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · refine ⟨rfl, ?_, rfl, rfl, ?_⟩
+    · simp [Memory.hashes, Memory.all, Memory.empty]
+    · simp [toolInfo, mkInfo, Kind.numbered]
+  · simp [LocResolves, toolInfo, mkInfo]
+  · simp [LocEnvelope, toolInfo, mkInfo, Memory.today, Memory.all, Memory.empty, Kind.allowedIn, Kind.isRoot]
+  · simp [LocArity, Info.arityOk, toolInfo, mkInfo, Kind.arity, Arity.ok]
+  · simp [LocWriters, toolInfo, mkInfo, hw, Kind.harnessOnly, Kind.isReturn]
+  · simp [LocFrame, toolInfo, mkInfo]
+  · simp [LocBounded, toolInfo, mkInfo, Info.isReturn, Kind.isReturn, Info.isKeep, Kind.isRoot]
+  · simp [LocRefusal, toolInfo, mkInfo]
+  · simp [LocRetire, toolInfo, mkInfo]
+  · simp [LocDays, toolInfo, mkInfo]
+  · simp [LocTargets, toolInfo, mkInfo]
+  · simp [LocWork, toolInfo, mkInfo, Kind.carriesTask, Memory.empty]
+
+/-- A shelf item the desk stocked into the shared store before the writer's first day. -/
+def shelfInfo (Γ : Ctx) : Info :=
+  mkInfo Γ Memory.empty .storeShared { writer := Γ.self + 1, kind := .shelf .passage, data := [1], pointers := [] }
+
+/-- The memory holding only that shelf item. -/
+def shelfMem (Γ : Ctx) : Memory := Memory.empty.push .storeShared (shelfInfo Γ)
+
+/-- The only info of the shelf memory is the shelf item. -/
+theorem shelfMem_all (Γ : Ctx) : (shelfMem Γ).all = [shelfInfo Γ] := by
+  simp [shelfMem, Memory.all, Memory.push, Memory.empty]
+
+/-- The shelf memory is well-formed, for every context: its one info has no pointers, is not a root, a return, a keep or a
+page, is written by a name that is not the writer's, and stands in the shared part of the store, where a shelf item belongs. -/
+theorem shelfMem_wellFormed (Γ : Ctx) : WellFormed Γ (shelfMem Γ) := by
+  have hw : Γ.self + 1 ≠ Γ.self := Nat.succ_ne_self _
+  have hall := shelfMem_all Γ
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro i hi
+    rw [hall] at hi
+    simp at hi
+    subst hi
+    rfl
+  · rw [hall]; simp
+  · intro l hl
+    simp [LogId.all] at hl
+    rcases hl with rfl | rfl | rfl | rfl <;>
+      simp [Chained, chainedFrom, shelfMem, Memory.log, Memory.push, Memory.empty, shelfInfo, mkInfo, Memory.tailHash]
+  · rw [hall]; simp [Memory.count, shelfMem_all]; rfl
+  · intro l hl
+    simp [LogId.all] at hl
+    rcases hl with rfl | rfl | rfl | rfl <;>
+      simp [shelfMem, Memory.log, Memory.push, Memory.empty]
+  · intro i hi
+    rw [hall] at hi
+    simp at hi
+    subst hi
+    simp [shelfInfo, mkInfo, Kind.numbered]
+  · intro i hi p hp
+    rw [hall] at hi
+    simp at hi
+    subst hi
+    simp [shelfInfo, mkInfo] at hp
+  · intro l hl i hi
+    simp [LogId.all] at hl
+    rcases hl with rfl | rfl | rfl | rfl <;>
+      simp [shelfMem, Memory.log, Memory.push, Memory.empty] at hi
+    subst hi
+    refine ⟨?_, ?_⟩
+    · unfold rootsUpTo
+      rw [hall]
+      simp [shelfInfo, mkInfo, Memory.today, Memory.all, Memory.empty, Kind.isRoot]
+    · simp [shelfInfo, mkInfo, Kind.allowedIn]
+  · intro i hi
+    rw [hall] at hi
+    simp at hi
+    subst hi
+    simp [Info.arityOk, shelfInfo, mkInfo, Kind.arity, Arity.ok]
+  · intro l hl i hi
+    simp [LogId.all] at hl
+    rcases hl with rfl | rfl | rfl | rfl <;>
+      simp [shelfMem, Memory.log, Memory.push, Memory.empty] at hi
+    subst hi
+    simp [shelfInfo, mkInfo, hw, Kind.harnessOnly, Kind.isReturn]
+  · intro i hi hk
+    rw [hall] at hi
+    simp at hi
+    subst hi
+    simp [shelfInfo, mkInfo] at hk
+  · refine ⟨?_, ?_, ?_, ?_, ?_⟩
+    · intro i hi hr
+      rw [hall] at hi
+      simp at hi
+      subst hi
+      simp [shelfInfo, mkInfo, Info.isReturn, Kind.isReturn] at hr
+    · intro i hi hk
+      rw [hall] at hi
+      simp at hi
+      subst hi
+      simp [shelfInfo, mkInfo] at hk
+    · intro i hi hk
+      rw [hall] at hi
+      simp at hi
+      subst hi
+      simp [shelfInfo, mkInfo] at hk
+    · simp [Memory.roots, shelfMem, Memory.push, Memory.empty, rootsPointed]
+    · simp [Memory.liveKeeps, shelfMem, Memory.push, Memory.empty]
+  · intro i hi hk
+    rw [hall] at hi
+    simp at hi
+    subst hi
+    simp [shelfInfo, mkInfo] at hk
+  · intro e he hk
+    rw [hall] at he
+    simp at he
+    subst he
+    simp [shelfInfo, mkInfo] at hk
+  · refine ⟨?_, ?_, ?_⟩ <;> intro i hi <;> simp [shelfMem, Memory.push, Memory.empty] at hi
+  · intro i hi p hp
+    rw [hall] at hi
+    simp at hi
+    subst hi
+    simp [shelfInfo, mkInfo] at hp
+  · intro i hi hk pg hpg
+    simp [shelfMem, Memory.push, Memory.empty] at hpg
+
+end Lone
+
+/-- The tool passes every local check of the toolkit: offering it to the empty memory is accepted. -/
+theorem toolMem_step (Γ : Ctx) : step Γ Memory.empty .toolkit (toolInfo Γ) = toolMem Γ :=
+  Lone.step_of_ok (Lone.toolInfo_ok Γ)
 
 /-- The harness reaches the tool memory: one accepted append from the empty memory. -/
 theorem toolMem_derivable (Γ : Ctx) : Derivable Γ (toolMem Γ) := by
   rw [← toolMem_step]
-  exact Derivable.step _ _ (by simp only [toolInfo, mkInfo, ne_eq, reduceCtorEq, not_false_eq_true])
-    (by simp only [toolInfo, mkInfo, ne_eq, reduceCtorEq, not_false_eq_true]) Derivable.empty
+  exact Derivable.offer .toolkit _ (by simp only [toolInfo, mkInfo, Kind.offerableIn]) Derivable.empty
 
-/-- The tool memory is well-formed. -/
-theorem toolMem_wellFormed (Γ : Ctx) : WellFormed Γ (toolMem Γ) :=
-  derivable_wellFormed Γ _ (toolMem_derivable Γ)
-
-/-- The literal reading of Theorem 2 ("every info of the memory is reachable from the root within depth + 1 hops") is
-false: in a derivable memory whose only info is a tool, the tool is not in the closure of the root (over derivations and
-relation edges, in either direction), so in particular it is within no number of hops. Nothing in the catalogue points
-at a tool. -/
+/-- The literal reading of Theorem 2 ("every info of the memory is reachable from the root within depth + 1 hops") is false:
+in a derivable memory whose only info is a tool, the tool is not in the closure of the root (over derivations and relation
+edges, in either direction). Nothing in the catalogue points at a tool. -/
 theorem literal_reachability_false (Γ : Ctx) :
     Derivable Γ (toolMem Γ) ∧ toolInfo Γ ∈ (toolMem Γ).toolkit ∧
       ¬(startDay Γ (toolMem Γ)).InClosure (root Γ (toolMem Γ)).hash (toolInfo Γ).hash := by
@@ -70,176 +196,54 @@ theorem literal_reachability_false (Γ : Ctx) :
           · simp only [htp, List.not_mem_nil] at hp
         · rw [hday] at he
           have hrk : (root Γ (toolMem Γ)).kind.isEdge = false := by
-            simp only [Kind.isEdge, Info.kind, root, mkInfo, rootDraft, List.cons_append, List.append_assoc]
+            simp only [Kind.isEdge, Info.kind, root, mkInfo, rootDraft]
           have htk : (toolInfo Γ).kind.isEdge = false := by
             simp only [Kind.isEdge, Info.kind, toolInfo, mkInfo]
           simp only [Memory.edges, Memory.all, List.nil_append, List.append_nil, List.cons_append, hrk,
             Bool.false_eq_true, not_false_eq_true, List.filter_cons_of_neg, List.filter, htk, List.not_mem_nil] at he
-    -- the root and the tool are different infos (their arrival numbers differ), so their hashes differ
+    -- the root and the tool are different infos (their kinds differ), so their hashes differ
     intro h
     have heq := hstuck _ h
-    have hb := Γ.H.injective _ _ (by simpa only [toolInfo, mkInfo, root] using heq)
-    have := congrArg Body.seq hb
-    simp only [Memory.count, Memory.all, Memory.empty, List.append_nil, List.length_nil, Memory.grouped,
-      Memory.heads, toolMem, Memory.push, toolInfo, mkInfo, List.nil_append, Memory.entries, List.filter_nil,
-      List.map_nil, climb, List.length_cons, Nat.zero_add, Nat.zero_ne_one] at this
+    have hb : (toolInfo Γ).content = (root Γ (toolMem Γ)).content := Γ.H.injective _ _ heq
+    have hk := congrArg (fun c : Content => c.env.kind) hb
+    have hkt : (toolInfo Γ).content.env.kind = .tool := rfl
+    have hkr : (root Γ (toolMem Γ)).content.env.kind = .root := rfl
+    simp only [hkt, hkr] at hk
+    exact absurd hk (by decide)
 
-/-- A concrete hash function: an injective encoding of bodies into the natural numbers. The body is flattened to a
-list of numbers (writer, day, kind, arrival number, history pointer, data length, data, pointers) and the list is
-written as a prefix code (`WitnessAux.encList`): each number in as many bits as it needs, its bit count in as many bits
-as that needs, and that count in unary. A hash that holds an earlier hash is only a little longer than it. -/
-def Hasher.concrete : Hasher := ⟨WitnessAux.hashBody, WitnessAux.hashBody_injective⟩
+/-! ## The coverage hypothesis: satisfiable, and needed -/
 
-/-! ## The witness memory of `nonvacuous`
+/-- The coverage hypothesis is not empty: a ranker that returns the whole memory covers every meaning (a degenerate witness;
+`nonvacuous` has a ranker that is neither empty nor total). -/
+theorem coverage_satisfiable (Γ : Ctx) (hr : Γ.ranker = fun m _ _ => m.all) (W : Wanted) (m : Memory) (p : Policy) :
+    Coverage Γ W m p := by
+  intro s words x hx _ _
+  rw [hr]
+  cases s <;> simp only [Memory.scopeInfos, Memory.all, List.mem_append] at hx ⊢ <;> grind
 
-The context: fan-out `k = 2`, keep cap `c = 2`, return cap `8`, title cap `2`; the writer is `1`, the harness `2`.
-The harness runs ten operations from the empty memory:
+/-- The coverage hypothesis is needed: with a ranker that returns nothing, there is a well-formed memory in which the writer would
+want an info that the lookup does not return, so the combined guarantee fails and coverage fails with it. -/
+theorem coverage_needed (Γ : Ctx) (hr : Γ.ranker = fun _ _ _ => []) :
+    ∃ (W : Wanted) (m : Memory) (s : Scope) (words : Data) (p : Policy),
+      WellFormed Γ m ∧ ¬Coverage Γ W m p ∧
+      ¬(∀ x ∈ m.scopeInfos s, W words x → x ∈ lookupWords Γ m s words p) := by
+  -- one shelf item, offered to the shared store, whose data does not hold the word 2; the writer wants it whatever the words
+  have hmem : Lone.shelfInfo Γ ∈ (Lone.shelfMem Γ).scopeInfos .store := by
+    simp [Memory.scopeInfos, Lone.shelfMem, Memory.push, Memory.empty]
+  have hh : (Lone.shelfInfo Γ).holdsWords [2] = false := by
+    simp [Info.holdsWords, Lone.shelfInfo, mkInfo, Kind.numbered]
+  refine ⟨fun _ _ => True, Lone.shelfMem Γ, .store, [2], Γ.policy, Lone.shelfMem_wellFormed Γ, ?_, ?_⟩
+  · intro hc
+    have := hc .store [2] _ hmem trivial hh
+    simp [hr] at this
+  · intro h
+    have := h _ hmem trivial
+    simp [lookupWords, fuse, Memory.lexical, Memory.vectorSide, hr, hh] at this
 
-1. start of day 1 (the first root; no heads, nothing to group);
-2. the night `n1`;
-3. the aside `a1` on the night;
-4. the aside `a2` on the night;
-5. the edge `e1`: `a2` continues `a1` (a thread of two, whose head is `a2`);
-6. the keep `k1` of `a1`;
-7. an offer of a return of nine tokens, over the cap: refused, and recorded as a return of kind refusal (reason 7);
-   the offered return itself never enters the memory;
-8. start of day 2: three heads (`a2`, `e1`, `k1`) exceed the fan-out, so two group nodes, then the second root;
-9. the aside `a3`;
-10. the edge `s1`: `a3` supersedes `a1` (retires `a1`).
-
-At the end there are five heads (`a2`, `e1`, `k1`, `a3`, `s1`), so the next root groups twice (depth 2). -/
-
-namespace Witness
-
-/-- The knobs of the witness. -/
-def params : Params := { k := 2, c := 2, cap := 8, titleCap := 2, hk := by decide, hcap := by decide }
-
-/-- The context of the witness. -/
-def ctx : Ctx := { H := Hasher.concrete, self := 1, harness := 2, harnessNotSelf := by decide, p := params }
-
-/-- 1. Start of day 1. -/
-def m1 : Memory := startDay ctx Memory.empty
-/-- 2. The night. -/
-def n1 : Info := mkInfo ctx m1 .hippocampus { writer := 1, kind := .night, data := [7], pointers := [] }
-def m2 : Memory := step ctx m1 .hippocampus n1
-/-- 3. An aside on the night. -/
-def a1 : Info := mkInfo ctx m2 .hippocampus { writer := 1, kind := .aside, data := [1], pointers := [n1.hash] }
-def m3 : Memory := step ctx m2 .hippocampus a1
-/-- 4. Another aside on the night. -/
-def a2 : Info := mkInfo ctx m3 .hippocampus { writer := 1, kind := .aside, data := [2], pointers := [n1.hash] }
-def m4 : Memory := step ctx m3 .hippocampus a2
-/-- 5. `a2` continues `a1`. -/
-def e1 : Info :=
-  mkInfo ctx m4 .hippocampus { writer := 1, kind := .edge .continues, data := [], pointers := [a2.hash, a1.hash] }
-def m5 : Memory := step ctx m4 .hippocampus e1
-/-- 6. The keep of `a1`. -/
-def k1 : Info := mkInfo ctx m5 .hippocampus { writer := 1, kind := .keep, data := [], pointers := [a1.hash] }
-def m6 : Memory := step ctx m5 .hippocampus k1
-/-- 7. A return of nine tokens, over the cap of eight: the offer is refused. -/
-def r0 : Info :=
-  mkInfo ctx m6 .storePrivate
-    { writer := 2, kind := .ret .infos, data := [0, 1, 2, 3, 4, 5, 6, 7, 8], pointers := [n1.hash] }
-def m7 : Memory := step ctx m6 .storePrivate r0
-/-- 8. Start of day 2. -/
-def m8 : Memory := startDay ctx m7
-/-- 9. A third aside. -/
-def a3 : Info := mkInfo ctx m8 .hippocampus { writer := 1, kind := .aside, data := [3], pointers := [n1.hash] }
-def m9 : Memory := step ctx m8 .hippocampus a3
-/-- 10. `a3` supersedes `a1`. -/
-def s1 : Info :=
-  mkInfo ctx m9 .hippocampus { writer := 1, kind := .edge .supersedes, data := [], pointers := [a3.hash, a1.hash] }
-/-- The witness memory. -/
-def mem : Memory := step ctx m9 .hippocampus s1
-
-/-- The operations the harness runs. -/
-def ops : List Op :=
-  [.newDay, .append .hippocampus n1, .append .hippocampus a1, .append .hippocampus a2, .append .hippocampus e1,
-    .append .hippocampus k1, .append .storePrivate r0, .newDay, .append .hippocampus a3, .append .hippocampus s1]
-
-/-- The witness memory is what the harness reaches by running those operations from the empty memory. -/
-theorem replay_ops : replay ctx ops = mem := by
-  unfold replay ops
-  simp only [List.foldl, Op.run]
-  rfl
-
-/-- The memory before the refused offer is a prefix of the witness memory. -/
-theorem m6_extends : m6.Extends mem := by
-  unfold Memory.Extends
-  decide +kernel
-
-/-- The memory before the refused offer is reached by the harness. -/
-theorem derivable_m6 : Derivable ctx m6 :=
-  .step _ _ (by decide) (by decide) <| .step _ _ (by decide) (by decide) <|
-  .step _ _ (by decide) (by decide) <| .step _ _ (by decide) (by decide) <|
-  .step _ _ (by decide) (by decide) <| .startDay .empty
-
-/-- The witness memory is reached by the harness. -/
-theorem derivable_mem : Derivable ctx mem :=
-  .step _ _ (by decide) (by decide) <| .step _ _ (by decide) (by decide) <| .startDay <|
-  .step _ _ (by decide) (by decide) derivable_m6
-
-/-- The concrete facts, computed by the kernel (`decide +kernel`: the kernel evaluates every hash; the largest, the
-hash of the next root, has about 216 000 bits). -/
-theorem facts :
-    4 ≤ mem.heads.length ∧ 0 < depth ctx mem ∧ 0 < mem.retiredPointers.length ∧ 2 ≤ mem.roots.length ∧
-    mem.count = 12 ∧ mem.today = 2 ∧ mem.entries.length = 6 ∧ mem.heads.length = 5 ∧ depth ctx mem = 2 ∧
-    mem.roots.length = 2 ∧ mem.retiredPointers.length = 1 ∧ mem.liveKeeps.length = 1 ∧
-    (mem.hippocampus.filter (fun i => i.kind = .aside)).length = 3 ∧
-    (∃ i ∈ mem.hippocampus, i.kind = .keep) ∧
-    (∃ i ∈ mem.hippocampus, i.kind = .edge .continues) ∧
-    (∃ i ∈ mem.hippocampus, i.kind = .edge .supersedes) ∧
-    (mem.storePrivate.filter (fun i => i.kind = .group)).length = 2 ∧
-    (∃ i ∈ mem.storePrivate, i.kind = .ret .refusal ∧ i.writer = ctx.harness ∧ i.data = [Refusal.bounded.number]) ∧
-    ctx.p.cap < r0.data.length ∧ append ctx m6 .storePrivate r0 = .inr .bounded ∧
-    (mem.grouped ctx).top.length = 2 ∧ (root ctx mem).size = 10 ∧ ctx.p.rootBound = 14 ∧
-    (root ctx mem).size ≤ ctx.p.rootBound ∧
-    ctx.p.k ^ depth ctx mem < mem.heads.length ∧ mem.heads.length ≤ ctx.p.k ^ (depth ctx mem + 1) ∧
-    view ctx mem = mem.entries.filter (fun x => ¬mem.retired x) ∧ (view ctx mem).length = 5 ∧
-    (∀ x ∈ mem.entries, x.hash ∈ (startDay ctx mem).closure [(root ctx mem).hash]) := by
-  decide +kernel
-
-end Witness
-
-/-- The theorems are not about an empty class of memories: with a concrete injective hash function, a concrete context,
-and a memory the harness reaches by a sequence of operations that includes two starts of day, a keep, a continues edge,
-a supersedes edge, an offer that is refused, and enough heads for the grouping fallback to fire, the memory is
-well-formed, its root is within the bound, the depth is positive, and the view is what Theorem 2 says.
-
-The witness is `Witness.mem` in the context `Witness.ctx` (hash `Hasher.concrete`, writer 1, harness 2, `k = 2`,
-`c = 2`, cap 8, title cap 2). Beyond the first six conjuncts it states: the memory is the replay of ten operations;
-it holds twelve infos over two days, six entries of the writer (three asides, a continues edge, a keep and a supersedes
-edge), five heads, one retired pointer, one standing keep, two group nodes (the second start of day grouped) and a
-return of kind refusal written by the harness with reason 7; that refusal records an offer of a nine-token return to a
-memory the harness reached earlier, which `append` refused for invariant 7; the next root lists two top items, has size
-10 against the bound 14, and stands over two levels of groups, with `2 ^ 2 < 5 ≤ 2 ^ 3`; the view is exactly the five
-entries that are not retired; and every entry, the retired one included, is in the closure of the root. -/
-theorem nonvacuous :
-    ∃ (Γ : Ctx) (m : Memory), Derivable Γ m ∧ WellFormed Γ m ∧ 4 ≤ m.heads.length ∧ 0 < depth Γ m ∧
-      0 < m.retiredPointers.length ∧ 2 ≤ m.roots.length ∧
-      Γ.H = Hasher.concrete ∧ Γ.self = 1 ∧ Γ.harness = 2 ∧
-      Γ.p.k = 2 ∧ Γ.p.c = 2 ∧ Γ.p.cap = 8 ∧ Γ.p.titleCap = 2 ∧
-      (∃ ops : List Op, replay Γ ops = m ∧ ops.length = 10) ∧
-      m.count = 12 ∧ m.today = 2 ∧ m.entries.length = 6 ∧ m.heads.length = 5 ∧ depth Γ m = 2 ∧
-      m.roots.length = 2 ∧ m.retiredPointers.length = 1 ∧ m.liveKeeps.length = 1 ∧
-      (m.hippocampus.filter (fun i => i.kind = .aside)).length = 3 ∧
-      (∃ i ∈ m.hippocampus, i.kind = .keep) ∧
-      (∃ i ∈ m.hippocampus, i.kind = .edge .continues) ∧
-      (∃ i ∈ m.hippocampus, i.kind = .edge .supersedes) ∧
-      (m.storePrivate.filter (fun i => i.kind = .group)).length = 2 ∧
-      (∃ i ∈ m.storePrivate, i.kind = .ret .refusal ∧ i.writer = Γ.harness ∧ i.data = [Refusal.bounded.number]) ∧
-      (∃ (m₀ : Memory) (i : Info), Derivable Γ m₀ ∧ m₀.Extends m ∧ Γ.p.cap < i.data.length ∧
-        append Γ m₀ .storePrivate i = .inr .bounded) ∧
-      (m.grouped Γ).top.length = 2 ∧ (root Γ m).size = 10 ∧ Γ.p.rootBound = 14 ∧
-      (root Γ m).size ≤ Γ.p.rootBound ∧
-      Γ.p.k ^ depth Γ m < m.heads.length ∧ m.heads.length ≤ Γ.p.k ^ (depth Γ m + 1) ∧
-      view Γ m = m.entries.filter (fun x => ¬m.retired x) ∧ (view Γ m).length = 5 ∧
-      (∀ x ∈ m.entries, x.hash ∈ (startDay Γ m).closure [(root Γ m).hash]) := by
-  obtain ⟨f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f20, f21, f22, f23,
-    f24, f25, f26, f27, f28, f29, f30⟩ := Witness.facts
-  exact ⟨Witness.ctx, Witness.mem, Witness.derivable_mem,
-    derivable_wellFormed _ _ Witness.derivable_mem, f1, f2, f3, f4, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-    ⟨Witness.ops, Witness.replay_ops, rfl⟩, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18,
-    ⟨Witness.m6, Witness.r0, Witness.derivable_m6, Witness.m6_extends, f20, f21⟩,
-    f22, f23, f24, f25, f26, f27, f28, f29, f30⟩
+/-- The knob condition of T12 (`RootFitsPage`: a root's canonical form fits a page) is satisfiable: `k = 2`, `c = 1`, `titleCap = 0`,
+`cap = 15`. (It is false on the knobs of `nonvacuous`, where the cap is 8.) -/
+theorem rootFitsPage_satisfiable : ∃ p : Params, RootFitsPage p :=
+  ⟨{ k := 2, c := 1, titleCap := 0, cap := 15, hk := by decide, hcap := by decide }, by
+    unfold RootFitsPage Params.hopBound Params.rootBound Params.page; decide⟩
 
 end MemoryArtifact

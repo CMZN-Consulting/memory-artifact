@@ -9,8 +9,14 @@ and knowledge are all computed").
 
 namespace MemoryArtifact
 
-/-- The hashes of every info of the memory. -/
-def Memory.hashes (m : Memory) : List Hash := m.all.map (·.hash)
+/-- The memory of the infos that arrived before number `n`: every log cut at `n`. For a well-formed memory, the cut at the
+arrival number of an info is the memory the harness had just before that info arrived (a cut need not be well-formed: the keep
+cap can fail on it). -/
+def Memory.arrivedBefore (m : Memory) (n : Nat) : Memory :=
+  { hippocampus := m.hippocampus.filter (fun i => decide (i.seq < n))
+    storePrivate := m.storePrivate.filter (fun i => decide (i.seq < n))
+    storeShared := m.storeShared.filter (fun i => decide (i.seq < n))
+    toolkit := m.toolkit.filter (fun i => decide (i.seq < n)) }
 
 /-- The info a pointer names, if the memory holds it: reaching an info by its name (3, 15). -/
 def Memory.resolve (m : Memory) (p : Pointer) : Option Info := m.all.find? (fun i => i.hash == p)
@@ -67,16 +73,18 @@ def Memory.closure (m : Memory) (start : List Hash) : List Hash :=
 
 /-! ## Threads and heads -/
 
-/-- The derived infos of the writer (22, 32): the entries the root's heads and the knowledge are made of. -/
-def Memory.entries (m : Memory) : List Info := m.hippocampus.filter (fun i => !i.pointers.isEmpty)
+/-- (22, 32; design record section 15, ruling 1) The entries: the derived infos of the writer (the hippocampus) of every
+kind but an edge and a keep. Edges and keeps are structure, never heads. -/
+def Memory.entries (m : Memory) : List Info :=
+  m.hippocampus.filter (fun i => !i.pointers.isEmpty && i.kind.isEntryKind)
 
 /-- The hashes of the entries. -/
 def Memory.entryHashes (m : Memory) : List Hash := m.entries.map (·.hash)
 
-/-- (28) Neighbours in a thread: an entry joined to `h` by a continues edge. Choice: a thread is a set of entries
-connected by continues edges between entries. -/
+/-- (28) Neighbours in a thread: an entry joined to `h` by a continues edge between entries. A retired continues edge no
+longer joins threads (ruling 11). -/
 def Memory.threadAdj (m : Memory) (h : Hash) : List Hash :=
-  (m.edges.filter (fun e => decide (e.kind = .edge .continues))).filterMap (fun e =>
+  (m.edges.filter (fun e => decide (e.kind = .edge .continues) && !decide (m.retired e))).filterMap (fun e =>
     match e.src, e.dst with
     | some a, some b =>
       if a = h ∧ b ∈ m.entryHashes then some b else if b = h ∧ a ∈ m.entryHashes then some a else none
@@ -95,8 +103,8 @@ instance (m : Memory) (x : Info) : Decidable (m.IsHead x) := by unfold Memory.Is
 /-- (29) The heads of the memory, oldest first: one for each thread that is not wholly retired. -/
 def Memory.heads (m : Memory) : List Info := m.entries.filter (fun x => decide (m.IsHead x))
 
-/-- (30) The keeps a root lists: the newest `c`. Choice: the cap is applied by the root, not by refusing a keep;
-letting a keep go is an appended supersedes edge, never a deletion. -/
+/-- (30) The keeps a root lists: the newest `c` that stand. (Invariant 7 already refuses a keep when `c` stand, so this is all of
+them; letting a keep go is an appended supersedes edge, never a deletion.) -/
 def Memory.listedKeeps (m : Memory) (c : Nat) : List Info := ((m.liveKeeps.reverse).take c).reverse
 
 end MemoryArtifact
