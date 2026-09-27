@@ -13,6 +13,7 @@ import MemoryArtifact.Tools.Lookups
 import MemoryArtifact.Tools.Accept
 import MemoryArtifact.Tools.Consider
 import MemoryArtifact.Theorems
+import MemoryArtifact.Epistemic
 import MemoryArtifact.Traversal
 import MemoryArtifact.Conformance
 import MemoryArtifact.Witnesses

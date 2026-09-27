@@ -4,6 +4,8 @@ import MemoryArtifact.Theorems.Reach
 import MemoryArtifact.Theorems.Determinism
 import MemoryArtifact.Theorems.AppendOnly
 import MemoryArtifact.Theorems.Lookups
+import MemoryArtifact.Theorems.Epistemic
+import MemoryArtifact.Theorems.Compression
 
 /-!
 # The theorems of design record section 9, over the second version
