@@ -26,7 +26,8 @@ def Op.run (Γ : Ctx) (m : Memory) : Op → Memory
   | .tool c => toolStep Γ m c
   | .newDay => startDay Γ m
 
-/-- The memory that a harness reaches by running a list of operations from the empty memory. -/
+/-- The memory reached by running a list of operations from the empty memory. `replay` runs any offer, offerable or not;
+the memories a harness reaches are the narrower class `Derivable`. -/
 def replay (Γ : Ctx) (ops : List Op) : Memory := ops.foldl (Op.run Γ) Memory.empty
 
 /-- What a caller may offer to a log: the infos of the desk, the readers and the harness's own records, and the model's night

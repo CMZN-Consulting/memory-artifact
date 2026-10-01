@@ -4,9 +4,11 @@ import MemoryArtifact.Graph
 namespace MemoryArtifact
 
 /-!
-# Theorems on the Epistemic Derivation Engine
+# Lemmas on the vocabulary of `Epistemic.lean`
 
-Formal proofs demonstrating the coherent reality of the epistemic framework.
+Five lemmas, each immediate from the definitions. They show that the definitions fit together as written. They say
+nothing about a memory the harness reaches and nothing about a model. (Header restated on 2026-10-01 after an audit;
+the statements are unchanged.)
 -/
 
 /-- An info that is a brute fact is not a derived info, by definition. -/
@@ -20,7 +22,8 @@ theorem brute_fact_not_derived (i : Info) (h : i.isBruteFact = true) : i.isDeriv
   · intro h
     contradiction
 
-/-- High structural compressibility directly corresponds to low algorithmic entropy. -/
+/-- Positive structural compressibility is negative algorithmic entropy: the second is defined as the negation of the
+first. -/
 theorem high_compressibility_low_entropy (experiences : List Info) (aside : Info)
     (h : StructuralCompressibility experiences aside > 0) :
     AlgorithmicEntropy experiences aside < 0 := by

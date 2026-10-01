@@ -262,14 +262,16 @@ and not all of it, and a list of operations whose replay `m` the harness reaches
    opens with the tool's code) and a return that is not a refusal, written by the tool, pointing first to the call;
 2. there are returns of kind infos, span, nothing, digest and refusal (one by a tool, one by the harness), a cursor, and a span
    lookup that starts where a cursor stopped: a later call of a lookup by a span whose target is the cursor's target and whose
-   start is the cursor's start plus what it had served;
+   start is the cursor's start plus what it had served (the conjunct reads those three tokens in the later call's data and not
+   its tool code; in this witness that call is a lookup by a span);
 3. a lookup by words, with words, runs under a policy of the log, which its call points to, and returns an info that does not
    hold the words and that the ranker returned, under that policy, on the memory before the call (`m.arrivedBefore call.seq`,
    the memory the tool read): the return points to it, and the call recorded the words;
 4. the coverage hypothesis holds, under a policy of the log, for a meaning that names an info the lexical side misses and the
    ranker finds, while the ranker leaves out some other info of the scope;
 5. the policies of the log are a chain (design record section 18g): epoch 0 points to nothing and epoch 1, later, to epoch 0;
-   and two lookups with the same tool and the same words, one pointing to each epoch, returned different infos;
+   and two lookups with the same tool and the same words, one pointing to each epoch, returned different infos (the conjunct
+   says the two returns differ; taken alone it does not say that the policy is the cause, since the log grew between them);
 6. there is a day of work: a page whose head is a task, on which a tool was called, every experience of the day and the info filed
    on it pointing to the task, and a result, the info filed last that points to the task; and a night written after a hand-over
    of its day (the one experience a day may hold after its end);

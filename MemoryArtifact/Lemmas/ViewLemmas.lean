@@ -103,7 +103,7 @@ theorem entries_in_view (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) :
   intro x hx hr
   have hwf' := startDay_wellFormed Γ m h
   have hnd' := wellFormed_hashes_nodup Γ (startDay Γ m) hwf'
-  obtain ⟨hd, hhd, hxt⟩ := exists_head m (ViewAux.seq_nodup h) x hx hr
+  obtain ⟨hd, hhd, hxt⟩ := exists_head m x hx hr
   obtain ⟨n, -, hpath⟩ := heads_within_depth Γ m hd hhd
   have hdh : hd.hash ∈ m.entryHashes := List.mem_map_of_mem (heads_sub_entries m hd hhd)
   have hcl : (startDay Γ m).InClosure (root Γ m).hash x.hash := by

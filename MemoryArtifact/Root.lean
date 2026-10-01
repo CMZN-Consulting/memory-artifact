@@ -3,7 +3,8 @@ import MemoryArtifact.Graph
 /-!
 # The root
 
-(30) A root is a derived info appended at the start of each day, pointing to the root before it and holding the day id,
+(30) A root is an info appended at the start of each day, pointing to the root before it (the first root, on the empty
+memory, points to nothing) and holding the day id,
 the heads and the keeps; its size never exceeds a fixed bound. The size is bounded by the three decisions of design
 record section 3: the day id is an address (the root holds a number, not a table), the keeps are capped, and grouping
 by time is the fallback, so that the bound never depends on the writer's behaviour.
@@ -56,8 +57,9 @@ def climb (Γ : Ctx) : Nat → Memory → List Hash → Nat → Grouped
 def Memory.grouped (Γ : Ctx) (m : Memory) : Grouped :=
   climb Γ m.heads.length m (m.heads.map (·.hash)) 0
 
-/-- The line the root shows for an item: its id and the first `titleCap` tokens of its data, the writer's own title
-(design record section 3). -/
+/-- The line the root shows for an item: its id and the first `titleCap` tokens of its data (design record section 3 calls
+them the writer's own title). For an info of a numbered kind the first of those tokens is its arrival number, so the line
+shows at most `titleCap - 1` tokens that the writer wrote. -/
 def Memory.line (Γ : Ctx) (m : Memory) (h : Hash) : Data :=
   h :: ((m.resolve h).map (fun i => i.data.take Γ.p.titleCap)).getD []
 

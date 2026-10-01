@@ -4,8 +4,9 @@ import MemoryArtifact.Lemmas.PushBasic
 /-!
 # The computed closure is the closure of design record section 2
 
-`Memory.closure` is breadth-first search with one round for each info of the memory. It is sound always, and complete
-(and closed: it terminates with everything reachable) when the memory's pointers resolve and its hashes are distinct.
+`Memory.closure` is breadth-first search with one round for each info of the memory. It is sound and closed under the
+neighbour relation for every memory, and complete (it returns everything reachable) when the memory's pointers resolve
+and its hashes are distinct.
 -/
 
 namespace MemoryArtifact
@@ -39,9 +40,8 @@ theorem nbrs_sound (m : Memory) (h y : Hash) : y ∈ m.nbrs h → CStep m h y :=
       · rw [if_pos h2] at hfe; exact Or.inr ⟨hfe, h2⟩
       · rw [if_neg h2] at hfe; cases hfe
 
-set_option linter.unusedVariables false in
-/-- With distinct hashes and resolving pointers, a step of the closure from a hash of the memory is a neighbour. -/
-theorem nbrs_complete (m : Memory) (hnd : m.hashes.Nodup) (hr : Resolves m) (h y : Hash) (hh : h ∈ m.hashes)
+/-- With distinct hashes and resolving pointers, a step of the closure is a neighbour, from any hash. -/
+theorem nbrs_complete (m : Memory) (hnd : m.hashes.Nodup) (hr : Resolves m) (h y : Hash)
     (hs : CStep m h y) : y ∈ m.nbrs h := by
   have hmem : ∀ i ∈ m.all, ∀ p ∈ i.pointers, p ∈ m.hashes := by
     intro i hi p hp
@@ -85,16 +85,13 @@ theorem closure_sound (m : Memory) (start : List Hash) : ∀ y ∈ m.closure sta
 theorem closure_complete (m : Memory) (start : List Hash) (hnd : m.hashes.Nodup) (hr : Resolves m) :
     ∀ x ∈ start, x ∈ m.hashes → ∀ y, m.InClosure x y → y ∈ m.closure start := by
   intro x hx hxh y hy
-  have key : ∀ z, Steps (CStep m) x z → z ∈ m.hashes ∧ Steps (AdjStep m.nbrs) x z := by
+  have key : ∀ z, Steps (CStep m) x z → Steps (AdjStep m.nbrs) x z := by
     intro z hz
     induction hz with
-    | refl => exact ⟨hxh, Steps.refl _⟩
-    | tail _ hbc ih =>
-      obtain ⟨hb, hs⟩ := ih
-      have hc := nbrs_complete m hnd hr _ _ hb hbc
-      exact ⟨nbrs_subset_hashes m _ _ hc, Steps.tail hs hc⟩
-  refine bfs_complete m.nbrs m.hashes hnd (fun a _ b hb => nbrs_subset_hashes m a b hb) m.count _ ?_
-    (nodup_eraseDups _) ?_ x ?_ y (key y hy).2
+    | refl => exact Steps.refl _
+    | tail _ hbc ih => exact Steps.tail ih (nbrs_complete m hnd hr _ _ hbc)
+  refine bfs_complete m.nbrs m.hashes (fun a _ b hb => nbrs_subset_hashes m a b hb) m.count _ ?_
+    (nodup_eraseDups _) ?_ x ?_ y (key y hy)
   · intro a ha
     rw [List.mem_eraseDups, List.mem_filter] at ha
     exact of_decide_eq_true ha.2
@@ -102,10 +99,10 @@ theorem closure_complete (m : Memory) (start : List Hash) (hnd : m.hashes.Nodup)
   · rw [List.mem_eraseDups, List.mem_filter]
     exact ⟨hx, decide_eq_true hxh⟩
 
-/-- The closure terminates with a set closed under the neighbour relation. -/
-theorem closure_closed (m : Memory) (start : List Hash) (hnd : m.hashes.Nodup) :
+/-- The closure terminates with a set closed under the neighbour relation, for every memory. -/
+theorem closure_closed (m : Memory) (start : List Hash) :
     ∀ x ∈ m.closure start, ∀ y ∈ m.nbrs x, y ∈ m.closure start := by
-  refine bfs_closed m.nbrs m.hashes hnd (fun a _ b hb => nbrs_subset_hashes m a b hb) m.count _ ?_
+  refine bfs_closed m.nbrs m.hashes (fun a _ b hb => nbrs_subset_hashes m a b hb) m.count _ ?_
     (nodup_eraseDups _) ?_
   · intro a ha
     rw [List.mem_eraseDups, List.mem_filter] at ha

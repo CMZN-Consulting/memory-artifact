@@ -55,9 +55,12 @@ def Kind.harnessOnly : Kind → Bool
   | .root | .group | .page | .dayRecord => true
   | _ => false
 
-/-- The kinds whose data opens with their own arrival number: everything the harness or a tool builds, so that two of them
-never have the same content, and so the same hash (ruling 10: the hash covers data and envelope, not the arrival number).
-Not numbered: a night (one a day), a root and a page (one a day), and what the desk and the readers place. -/
+/-- The kinds whose data opens with their own arrival number: everything the harness or a tool builds, and also what a
+caller offers of these kinds (a correction, a consolidation, a proposal, a day record, an edge), which must open with the
+memory's count or is refused under invariant 1. So two infos of a numbered kind never have the same content, and so never
+the same hash (ruling 10: the hash covers data and envelope, not the arrival number). Not numbered: a night (one a day), a
+root and a page (one a day), and the kinds the desk and the readers place (a notice, a framing, a shelf item, an answer, a
+task, a say or heard row, a tool declaration, a policy). -/
 def Kind.numbered : Kind → Bool
   | .night | .root | .page | .notice | .framing | .shelf _ | .answer | .task | .say | .heard | .tool | .policy => false
   | _ => true
@@ -196,7 +199,9 @@ def rootsPointed : List Info → Bool
   | [_] => true
   | a :: b :: rs => decide (a.hash ∈ b.pointers) && rootsPointed (b :: rs)
 
-/-- A log is hash-chained: each info's history pointer is the hash of the one before it, none for the first (18). -/
+/-- A log is chained by history pointers: each info's `prev` is the hash of the one before it, none for the first (18).
+The chain is not a commitment: `prev` lies outside the hashed content, so an info's hash fixes nothing before it
+(`tail_hash_not_commit`). -/
 def chainedFrom : Option Pointer → Log → Bool
   | _, [] => true
   | pv, i :: is => decide (i.prev = pv) && chainedFrom (some i.hash) is
@@ -235,10 +240,12 @@ def Memory.taskHead (m : Memory) (pg : Info) : Option Pointer := pg.pointers.fin
 
 /-! ## The invariants, each on a whole memory -/
 
-/-- Invariant 1, append-only: no earlier info changes. In a single memory that is what makes a change detectable: every
-info's hash is the hash of its content and no two infos share one, every log is a chain of history pointers, arrival
-numbers are a permutation of `0..n-1` increasing along each log (so history is one total order), and what the harness
-or a tool builds opens with its own arrival number. -/
+/-- Invariant 1, named append-only in the design record. It is a predicate on one memory and relates no memory to an
+earlier one: every info's hash is the hash of its content and no two infos share one, every log is a chain of history
+pointers, arrival numbers are a permutation of `0..n-1` increasing along each log (so history is one total order), and an
+info of a numbered kind opens with its own arrival number. That no earlier info changes is a theorem about the operations
+(`append_only`). What this invariant detects is a local edit of an info that has a successor in its log
+(`tamper_evident_local`), and nothing more (`tail_hash_not_commit`). -/
 structure AppendOnly (Γ : Ctx) (m : Memory) : Prop where
   /-- (3, 14) an info's hash is the hash of its content -/
   hashed : ∀ i ∈ m.all, i.hash = Γ.H.h i.content
@@ -267,9 +274,11 @@ is not an edge at least one; and the kinds that carry a pointer only on a day of
 def ArityOk (m : Memory) : Prop :=
   ∀ i ∈ m.all, i.arityOk = true
 
-/-- Invariant 5: only the model writes into its hippocampus; it writes nowhere else, save the infos it files into the shared
-part for others to reach (62); the roots, groups, pages and day records are the harness's; a return and a cursor are
-written by a tool, or by the harness on its behalf. -/
+/-- Invariant 5, on the writer LABEL: an info of the hippocampus carries the model's name, and the model's name is carried
+nowhere else, save by the infos it files into the shared part for others to reach (62); the roots, groups, pages and day
+records carry the harness's name; a return and a cursor carry a tool's name, or the harness's on its behalf. The clause
+reads the envelope's `writer`, a number the offerer supplies: it constrains the label and says nothing of who made the
+offer (an operation carries no actor). -/
 def WritersOk (Γ : Ctx) (m : Memory) : Prop :=
   ∀ l ∈ LogId.all, ∀ i ∈ m.log l,
     (l = .hippocampus → i.writer = Γ.self) ∧
@@ -278,8 +287,10 @@ def WritersOk (Γ : Ctx) (m : Memory) : Prop :=
       (i.kind.harnessOnly = true → i.writer = Γ.harness) ∧
       ((i.kind.isReturn = true ∨ i.kind = .cursor) → (Γ.isToolName i.writer = true ∨ i.writer = Γ.harness))
 
-/-- Invariant 6: nothing enters a root-frame unasked but the root and the page (a root and a page for each day at most),
-everything on the page is in the store, and a page names at most one task. -/
+/-- Invariant 6, what this model states of a root-frame (frames themselves are reads and are not modelled; `RootFrame` is
+used by no theorem): everything a page points to is in the store and earlier than the page, there is at most one page a
+day, and a page names at most one task. The design record's sentence, that nothing enters a root-frame unasked but the
+root and the page, is not expressed by this predicate. -/
 def FrameOk (m : Memory) : Prop :=
   ∀ i ∈ m.all, i.kind = .page →
     (∀ p ∈ i.pointers, ∃ j ∈ m.storePrivate ++ m.storeShared, j.hash = p ∧ j.seq < i.seq) ∧
@@ -297,7 +308,10 @@ def BoundedOk (Γ : Ctx) (m : Memory) : Prop :=
   rootsPointed m.roots = true ∧
   m.liveKeeps.length ≤ Γ.p.c
 
-/-- Invariant 8: a refusal is itself an append: a return of kind refusal in the private store, with its reason. -/
+/-- Invariant 8, as stated here: a return of kind refusal has data. The clause asks for no reason. A refusal is a numbered
+kind, so invariant 1 already makes its data open with its arrival number, and this invariant follows from invariant 1.
+The records the harness and the tools write do carry a reason, by construction (`refusalDraft`, `refuseCall`), not by this
+clause. That a refusal is itself an append is `step_refused`. -/
 def RefusalOk (m : Memory) : Prop :=
   ∀ i ∈ m.all, i.kind = .ret .refusal → i.data ≠ []
 
@@ -307,8 +321,10 @@ def RetireOk (m : Memory) : Prop :=
   ∀ e ∈ m.all, e.kind = .edge .supersedes → ∀ b, e.dst = some b →
     (∃ x ∈ m.hippocampus, x.hash = b) → e ∈ m.hippocampus
 
-/-- Invariant 10 (second version, rulings 14 and the day's end, definitions 59 and 60): one night per day, no experience
-before the first root, and once a day has ended (a hand-over or a stop) nothing but the night follows it. A choice, listed
+/-- Invariant 10 (second version, rulings 14 and the day's end, definitions 59 and 60): one night per day, no info of the
+hippocampus before the first root, and once a day has ended (a hand-over or a stop) nothing but the night follows it in the
+hippocampus. The clauses bind the hippocampus only: an info the model files into the shared store is not bound by them. A
+choice, listed
 in the README: the night is written as the day closes whatever ended it (design record section 13), so it may come after
 the hand-over or the stop, which are the last of the experiences the individual acts with. -/
 def DaysOk (m : Memory) : Prop :=
@@ -346,7 +362,7 @@ structure WellFormed (Γ : Ctx) (m : Memory) : Prop where
   frame : FrameOk m
   /-- 7. a return is at most the cap; the root is at most its bound and points to the previous root; the keeps are capped -/
   bounded : BoundedOk Γ m
-  /-- 8. a refusal is itself an append -/
+  /-- 8. a refusal has data (this follows from 1) -/
   refusal : RefusalOk m
   /-- 9. the writer alone retires the writer's entries -/
   retire : RetireOk m
@@ -399,7 +415,7 @@ def LocBounded (Γ : Ctx) (m : Memory) (i : Info) : Prop :=
   (i.kind = .root → i.size ≤ Γ.p.rootBound ∧ (m.roots.getLast?.all (fun q => decide (q.hash ∈ i.pointers))) = true) ∧
   (i.isKeep = true → m.liveKeeps.length < Γ.p.c)
 
-/-- Local 8: a refusal carries its reason. -/
+/-- Local 8: a refusal has data (implied by local 1; see `RefusalOk`). -/
 def LocRefusal (i : Info) : Prop := i.kind = .ret .refusal → i.data ≠ []
 
 /-- Local 9: a supersedes edge that points at an info of the hippocampus is written to the hippocampus. -/

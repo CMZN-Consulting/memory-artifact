@@ -72,10 +72,9 @@ theorem toolStep_returns_same_day (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) 
       · exact fun hx => ToolCloseAux.mkInfo_not_mem_all h.appendOnly _ _ (ToolCloseAux.mem_all_of_hippocampus_tc hx)
     · exact Or.inr h5
 
-set_option linter.unusedVariables false in
 /-- (59, 60) T11, a day that has ended takes no more calls of the individual: after a hand-over or a stop, a call writes nothing
-to the hippocampus; the harness records a refusal. -/
-theorem ended_day_takes_no_calls (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (c : ToolCall) (he : m.dayEnded) :
+to the hippocampus; the harness records a refusal. It holds for every memory, well-formed or not. -/
+theorem ended_day_takes_no_calls (Γ : Ctx) (m : Memory) (c : ToolCall) (he : m.dayEnded) :
     (toolStep Γ m c).hippocampus = m.hippocampus := by
   rcases ToolCloseAux.toolStep_cases_tc Γ m c with ⟨-, hs⟩ | ⟨decl, r, -, -, hs⟩ | ⟨decl, m1, -, ha, hs⟩
   · rw [hs]; rfl

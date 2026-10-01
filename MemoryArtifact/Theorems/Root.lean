@@ -67,10 +67,13 @@ theorem rootDraft_congr : rootDraft Γ = rootDraft Γ' := by
 
 end RootThmAux
 
-/-- Theorem 3, what the structure does not depend on: the root, the start of a day, the view and the depth are the same in two
-contexts that agree on the hash function, the harness's name and the knobs, whatever their rankers, embedders, policies,
-recipe times, tool names and writer names. So a change of ranker changes no root and no reachability (invariant 12: the index
-never routes reachability). -/
+/-- Theorem 3, what the structure does not depend on: for ONE memory, the root, the start of a day, the view and the depth are
+the same in two contexts that agree on the hash function, the harness's name and the knobs, whatever their rankers, embedders,
+recipe times, tool names and writer names. So reading a given memory under another ranker changes no root and no
+reachability (invariant 12: the index never routes reachability). The statement does not say that two rankers build the same
+memory from the same operations, and they need not: a lookup's return is an info of the log, and what the writer keeps of it
+is listed by the next root. A policy is an info of the log, not a field of the context, so it is not among the things
+varied here. -/
 theorem structural_independent_of_ranker (Γ Γ' : Ctx) (hH : Γ.H = Γ'.H) (hh : Γ.harness = Γ'.harness) (hp : Γ.p = Γ'.p)
     (m : Memory) :
     root Γ m = root Γ' m ∧ startDay Γ m = startDay Γ' m ∧ view Γ m = view Γ' m ∧ depth Γ m = depth Γ' m := by

@@ -223,8 +223,8 @@ open PushBasicAux PushLocalAux PushBoundAux PushCexAux
 
 /-- `push_bounded` without its hypothesis `hres` (invariant 2 of the memory) is false, in every context, whatever the keep
 cap `c`. Take `c` keeps in the hippocampus and one supersedes edge in the shared part of the store whose second pointer
-is the hash of the keep that arrives next, a pointer that names no info of the memory (`¬ Resolves m`, the only
-invariant that forbids it). Invariant 1 holds before, invariant 7 holds before (the keeps stand at the cap `c`), the kind
+is the hash of the keep that arrives next, a pointer that names no info of the memory (`¬ Resolves m`; invariant 11, which
+implies invariant 2, forbids it too). Invariant 1 holds before, invariant 7 holds before (the keeps stand at the cap `c`), the kind
 belongs in the hippocampus, and the local check of invariant 1 accepts the keep. After the push invariant 7 holds
 still, because the keep is born retired and so is not live; yet the local check of invariant 7 refuses it, since the
 live keeps already stand at the cap. -/

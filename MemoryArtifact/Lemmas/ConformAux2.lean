@@ -4,7 +4,8 @@ import MemoryArtifact.Lemmas.ConformAux
 # Helpers for `Conformance.lean`: the two memories that refute the first version's statements
 
 A memory whose keep cap holds only of the whole (`KeepCapWitness`), and two memories that end their toolkit with the same hash
-(`TailWitness`). Both are for every context, whatever its hash function.
+(`TailWitness`). `TailWitness` is for every context, whatever its hash function. `KeepCapWitness` is for every context
+whose keep cap is 1 (`Γ.p.c = 1`): with another cap its memory is either not well-formed or refutes nothing.
 -/
 
 namespace MemoryArtifact
@@ -265,7 +266,8 @@ end KeepCapWitness
 
 namespace TailWitness
 
-/-- A tool declaration of the desk (a writer that is neither the model nor a harness), with a code. -/
+/-- A tool declaration with a code, written under the name `Γ.self + 1`, which is not the model's. Whether that name is the
+harness's, a tool's or the desk's depends on the context; no statement depends on it. -/
 def toolBody (Γ : Ctx) (c : Nat) (pv : Option Pointer) (s : Nat) : Body :=
   { data := [c], env := ⟨Γ.self + 1, 0, .tool⟩, pointers := [], prev := pv, seq := s }
 

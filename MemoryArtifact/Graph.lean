@@ -29,7 +29,9 @@ inductive Steps {α : Type} (r : α → α → Prop) : α → α → Prop where
 /-- One step along a derivation: from an info to one of the infos it points to (23). -/
 def PtrStep (m : Memory) (x y : Pointer) : Prop := ∃ i ∈ m.all, i.hash = x ∧ y ∈ i.pointers
 
-/-- (26) Reachable: `y` is reachable from `x` when a chain of pointers leads from `x` to `y`. -/
+/-- (26) Reachable: `y` is reachable from `x` when a chain of pointers leads from `x` to `y`. Every number is reachable
+from itself, whether or not the memory holds such a hash, and a step does not ask its target to resolve: in a memory that
+is not well-formed a dangling pointer is reachable. The theorems add `x ∈ m.hashes` where it matters. -/
 def Memory.Reachable (m : Memory) (x y : Pointer) : Prop := Steps (PtrStep m) x y
 
 /-- A relation link: an edge joins the two infos it points to (24), in either direction for the closure. -/
@@ -39,10 +41,11 @@ def Link (m : Memory) (x y : Pointer) : Prop :=
 /-- A step of the closure of design record section 2: along a derivation, or along a relation edge. -/
 def CStep (m : Memory) (x y : Pointer) : Prop := PtrStep m x y ∨ Link m x y
 
-/-- (31) The closure over derivation and relation edges (design record section 2): `y` is in the closure of `x`. -/
+/-- (31) The closure over derivation and relation edges (design record section 2): `y` is in the closure of `x`. The remark
+on `Memory.Reachable` applies here too. -/
 def Memory.InClosure (m : Memory) (x y : Pointer) : Prop := Steps (CStep m) x y
 
-/-- A path of at most `n` derivation steps, counted: `n` hops from `x` to `y`. -/
+/-- A path of exactly `n` derivation steps: `n` hops from `x` to `y`. (The theorems bound `n` from above.) -/
 inductive PtrPath (m : Memory) : Nat → Pointer → Pointer → Prop where
   | refl (a : Pointer) : PtrPath m 0 a a
   | step {a c b : Pointer} {n : Nat} : PtrStep m a c → PtrPath m n c b → PtrPath m (n + 1) a b
@@ -74,7 +77,8 @@ def Memory.closure (m : Memory) (start : List Hash) : List Hash :=
 /-! ## Threads and heads -/
 
 /-- (22, 32; design record section 15, ruling 1) The entries: the derived infos of the writer (the hippocampus) of every
-kind but an edge and a keep. Edges and keeps are structure, never heads. -/
+kind that `Kind.isEntryKind` admits. Not an edge and not a keep (they are structure, never heads), and not the bookkeeping
+of a tool call either (the call, the recipe named, the data given, the outcome): a choice, listed in the README. -/
 def Memory.entries (m : Memory) : List Info :=
   m.hippocampus.filter (fun i => !i.pointers.isEmpty && i.kind.isEntryKind)
 
@@ -100,7 +104,8 @@ def Memory.IsHead (m : Memory) (x : Info) : Prop :=
 
 instance (m : Memory) (x : Info) : Decidable (m.IsHead x) := by unfold Memory.IsHead; infer_instance
 
-/-- (29) The heads of the memory, oldest first: one for each thread that is not wholly retired. -/
+/-- (29) The heads of the memory, oldest first. Every thread that is not wholly retired has one (`exists_head`); that it
+has only one is the design's intent and is not proved in this library. -/
 def Memory.heads (m : Memory) : List Info := m.entries.filter (fun x => decide (m.IsHead x))
 
 /-- (30) The keeps a root lists: the newest `c` that stand. (Invariant 7 already refuses a keep when `c` stand, so this is all of

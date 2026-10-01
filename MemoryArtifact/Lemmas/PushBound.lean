@@ -216,8 +216,7 @@ theorem push_frame (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h1 : AppendOn
         rw [htaskNew hxp] at htp htq
         exact htask p hp q hq htp htq
 
-set_option linter.unusedVariables false in
-theorem push_bounded (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h1 : AppendOnly Γ m) (hres : Resolves m)
+theorem push_bounded (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (hres : Resolves m)
     (h : BoundedOk Γ m) (hl : LocAppendOnly Γ m l i) (he : Kind.allowedIn l i.kind = true) :
     BoundedOk Γ (m.push l i) ↔ LocBounded Γ m i := by
   obtain ⟨hret, hgrp, hroot, hptd, hkeeps⟩ := h

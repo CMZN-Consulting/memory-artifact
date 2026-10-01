@@ -51,7 +51,8 @@ theorem tail_hash_not_commit (Γ : Ctx) :
 
 /-- T8, replayability: in a memory the harness reached, the return to a recorded lookup by words is recomputed from the log before
 the call, the words the call recorded and the policy its derivation points to (design record section 18g): the same log, the same
-words and the same policy give the same return, under the lookup's own epoch for ever, whatever policies came after. `ret` must be
+words and the same policy give the same return data (the arrival number and the first page; the return's pointers, kind and
+writer are not part of the statement), under the lookup's own epoch for ever, whatever policies came after. `ret` must be
 a return: without that hypothesis the statement is false (`ConformanceAux.lookup_replayable_false`: an edge in the private store,
 written under a tool's name and pointing first to the call, is accepted by the harness and holds data no lookup made). -/
 theorem lookup_replayable (Γ : Ctx) (m : Memory) (hd : Derivable Γ m) (call ret : Info) (hcall : call ∈ m.hippocampus)

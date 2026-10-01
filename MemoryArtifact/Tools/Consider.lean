@@ -3,13 +3,13 @@ import MemoryArtifact.Lemmas.ConsiderAux
 
 namespace MemoryArtifact
 
-set_option linter.unusedVariables false in
 /-- (55, 50, 51, T13) A consider's traces never fail on a valid call: on a memory that holds the call, on a day that has begun
 and not ended, every link of every trace is accepted, and the appends are a chain of accepted pushes that opens no day; the
-traces return one head for each target. -/
+traces return one head for each target. The targets themselves are not constrained here: the statement holds whether or not
+they resolve in the memory. -/
 theorem considerTraces_spec (Γ : Ctx) (call : Hash) (ts : List Pointer) (chains : List (List Data)) (m : Memory)
     (acc : List Hash) (hwf : WellFormed Γ m) (hcall : ∃ x ∈ m.hippocampus, x.hash = call ∧ x.kind = .call)
-    (hd : 1 ≤ m.today) (hts : ∀ t ∈ ts, t ∈ m.hashes) (hne : ∀ ch ∈ chains, ch ≠ []) (hlen : chains.length = ts.length)
+    (hd : 1 ≤ m.today) (hne : ∀ ch ∈ chains, ch ≠ []) (hlen : chains.length = ts.length)
     (hend : ¬m.dayEnded) :
     ∃ m' hs, considerTraces Γ call ts chains m acc = some (m', acc ++ hs) ∧ Memory.Chain0 Γ m m' ∧
       hs.length = ts.length := by
@@ -135,7 +135,7 @@ theorem chain_head_reachable (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (ts :
   obtain ⟨y, hy, hyn, hyk, hyh, -⟩ := hf.digest ret hret hnew hrk hd hhd
   have hyE := ConsiderAux.aside_mem_entries Γ _ hf.wf y hy hyk
   have hyr := ConsiderAux.fresh_not_retired Γ m _ h hf.wf hf.steps y (by simp [Memory.all, hy]) hyn
-  obtain ⟨h', hh', hthr⟩ := exists_head _ (ViewAux.seq_nodup hf.wf) y hyE hyr
+  obtain ⟨h', hh', hthr⟩ := exists_head _ y hyE hyr
   exact ⟨y, hyE, hyh, hyr, entries_in_view Γ _ hf.wf y hyE hyr, h', hh', hyh ▸ hthr,
     heads_within_depth Γ _ h' hh'⟩
 

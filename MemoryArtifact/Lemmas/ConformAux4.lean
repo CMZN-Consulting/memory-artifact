@@ -55,7 +55,8 @@ theorem startDay_toolkit (Γ : Ctx) (m : Memory) : (startDay Γ m).toolkit = m.t
   exact ht
 
 open TailWitness in
-/-- The memory that holds only the tool `recall`, declared by the desk before the first day, and the first day begun. -/
+/-- The memory that holds only the tool `recall`, declared before the first day under the name `Γ.self + 1`, and the first
+day begun. -/
 def dayOne (Γ : Ctx) : Memory := startDay Γ (Memory.empty.push .toolkit (toolInfo' Γ 0 none 0))
 
 open TailWitness in

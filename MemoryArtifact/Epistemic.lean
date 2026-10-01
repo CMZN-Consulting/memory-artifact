@@ -4,8 +4,13 @@ import MemoryArtifact.Graph
 namespace MemoryArtifact
 
 /-!
-# Epistemic Derivation Engine Concepts
-Formalization of the 4-part state machine architecture and thermodynamic-like memory constraints.
+# Epistemic Derivation Engine: a vocabulary
+
+Twelve definitions that name concepts of a declared language, added on 2026-09-27. They are a vocabulary, not a model.
+There is no transition between the two states of `EpistemicState`, so no state machine is defined here; no definition
+bounds compression; and no theorem ties any of them to `WellFormed`, to `Derivable`, to a tool or to an operation.
+`EpistemicState`, `Momentum`, `SemanticNodeLinkage` and `Info.semanticDensity` are used by no theorem. They carry no
+definition number of the design record. (Header restated on 2026-10-01 after an audit; the definitions are unchanged.)
 -/
 
 /-- EpistemicState: absolute dissonance or generative resonance. -/
@@ -17,7 +22,8 @@ inductive EpistemicState where
 /-- BruteFact: a seen info, or an experience, that carries no pointers to other infos. -/
 def Info.isBruteFact (i : Info) : Bool := i.pointers.isEmpty
 
-/-- A derived info is one that has pointers. -/
+/-- Here a derived info is one that has pointers. This is a second notion beside `Info.derived` of `Defs.lean` (term 22),
+not the same one. -/
 def Info.isDerived (i : Info) : Bool := !i.pointers.isEmpty
 
 /-- IsolatedNode: a derived info that no edge points to, and that carries no edge to another derived info. -/
@@ -59,7 +65,9 @@ def GenerativeGrammar (m : Memory) (appended : List Info) : Prop :=
     (∃ e ∈ m.edges, e.src = some i.hash ∧
       ∃ b1 ∈ m.all, e.dst = some b1.hash ∧ b1.isBruteFact)
 
-/-- PredictiveFlow: a thread within a frame where generative grammar appends derived infos of high semantic density, and no recover is called. -/
+/-- PredictiveFlow, as defined here: generative grammar whose appended infos each carry a pointer. The second clause
+follows from the first. The declared language's "high semantic density" and "no recover is called" are not expressed:
+the model has no tool named recover. -/
 def PredictiveFlow (m : Memory) (appended : List Info) : Prop :=
   GenerativeGrammar m appended ∧
   ∀ i ∈ appended, i.pointers.length > 0

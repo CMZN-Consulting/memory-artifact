@@ -109,8 +109,10 @@ structure Envelope where
 /-- An info's body: everything but the hash itself. Beside the data and the envelope of (14) it holds the derivation (23), the
 history pointer of (18) and the arrival number that realises the one total order of the design record, section 2 ("history is the
 one total order, given by appending"). Ruling 10 of design record section 15 puts the log's chaining pointer and the arrival
-number outside the hash, as the log's structure, so that the same shelf item has one hash in every memory; here the hash covers
-the data, the envelope and the derivation (`Content`), the derivation being kept in (see the README, choices). -/
+number outside the hash, as the log's structure, so that the same shelf item, placed on the same day id, has one hash in every
+memory (the envelope holds the day id, so on another day it has another hash). That holds of the two fields. For a numbered
+kind (`Kind.numbered`) the data opens with the arrival number, so there the hash fixes the number all the same. Here the hash
+covers the data, the envelope and the derivation (`Content`), the derivation being kept in (see the README, choices). -/
 structure Body where
   /-- (2) the data -/
   data : Data
@@ -137,7 +139,8 @@ def Body.content (b : Body) : Content := ⟨b.data, b.env, b.pointers⟩
 
 /-- (14) Info: data with an envelope; its hash covers both (and the derivation; see `Content`). -/
 structure Info extends Body where
-  /-- (3) the hash of the content -/
+  /-- (3) meant as the hash of the content. At the level of the type it is a free number: `AppendOnly.hashed` and
+  `LocAppendOnly` are what tie it to the content, relative to the context's hash function. -/
   hash : Hash
   deriving DecidableEq, Repr
 
@@ -177,7 +180,8 @@ structure Cursor where
 /-- The data of a cursor info: the span and how much of it has been served. -/
 def Cursor.toData (c : Cursor) : Data := [c.span.target, c.span.start, c.span.len, c.served]
 
-/-- (18) Log: infos only ever appended, each carrying a pointer to the one before it. Oldest first. -/
+/-- (18) Log: a list of infos, oldest first. That infos are only ever appended, and that each carries a pointer to the one
+before it, are properties of the operations and of `Chained`, not of this type. -/
 abbrev Log : Type := List Info
 
 /-- The four logs of a memory. (32) hippocampus, (33) store (its private and its shared part), (37) toolkit. -/
@@ -213,7 +217,8 @@ def Memory.all (m : Memory) : List Info :=
 /-- The number of infos in the memory. -/
 def Memory.count (m : Memory) : Nat := m.all.length
 
-/-- Append an info to one log (18): the only way a log changes. -/
+/-- Append an info to one log (18). The three operations change a log in no other way (`append_only`); the type itself does
+not forbid another change. -/
 def Memory.push (m : Memory) : LogId → Info → Memory
   | .hippocampus, i => { m with hippocampus := m.hippocampus ++ [i] }
   | .storePrivate, i => { m with storePrivate := m.storePrivate ++ [i] }

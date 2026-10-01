@@ -4,8 +4,8 @@ import MemoryArtifact.Theorems
 # T12: the cost of traversal
 
 Design record section 17. The cost of traversing to any head is time: at most `depth + 1` hops, each hop one info of at most a
-fixed size, so at most one capped return, and `depth` is logarithmic in the number of heads. No term of the cost grows with
-the log's size but the logarithm.
+fixed size (one capped return when a root fits a page, `RootFitsPage`; a bounded number of pages otherwise), and `depth` is
+logarithmic in the number of heads. No term of the cost grows with the log's size but the logarithm.
 -/
 
 namespace MemoryArtifact
@@ -253,7 +253,8 @@ theorem traversal_cost_of_groupData (Γ : Ctx) (m : Memory) (hwf : WellFormed Γ
   ⟨TraversalAux.heads_pathB Γ m, depth_bounds Γ m, TraversalAux.canon_le_hopBound Γ m hwf hg⟩
 
 /-- T12, traversal cost. The hops from the next root to any head are at most `depth + 1`; each hop steps from an info of at
-most `hopBound` tokens, that is a lookup by that info's pointer (`ptr_lookup_serves`) of at most `⌈hopBound / page⌉` pages;
+most `hopBound` tokens, that is a lookup by that info's pointer (`ptr_lookup_serves`) of at most `⌈hopBound / page⌉` pages
+(the count of pages is a remark on that bound, not a conjunct of the statement);
 and the depth is at most the logarithm base `k` of the heads: `|heads| ≤ k ^ (depth + 1)` and, unless zero,
 `k ^ depth < |heads|`. The cost is counted in hops and pages (there is no clock); no term of it grows with the size of the
 log but through the number of heads, and that under a logarithm. The third conjunct rests on invariant 7's bound on a group

@@ -4,28 +4,30 @@ import MemoryArtifact.Graph
 namespace MemoryArtifact
 
 /-!
-# Subframe Reachability & Planck Compression Bound
-Proving that structural compressibility cannot collapse a thread forever, meaning
-the exact experiences of a subframe remain topologically reachable. No Sorry.
+# An aside and the experiences it points to
+
+Two lemmas added on 2026-09-27 and restated on 2026-10-01 after an audit. They are true and small, and what they do not
+say is stated with each. Nothing here is about the digest that a `consider` writes: that digest points to its call and
+to the last link of each trace, not to every experience. What the library proves of a consider's traces is in `Tools/`
+(`consider_links_in_log`, `chain_links_are_threaded`, `chain_head_reachable`).
 -/
 
-/-- An Info remains explicitly in the graph topology even if it was compressed into a digest. -/
-theorem subframe_experiences_remain_reachable (m : Memory) (experiences : List Info) (aside : Info)
-    (_h_compact : StructuralCompressibility experiences aside > 0)
-    (h_mem : aside ∈ m.all)
-    (h_pointers : ∀ i ∈ experiences, i.hash ∈ aside.pointers) :
-    ∀ i ∈ experiences, i ∈ m.all → Memory.Reachable m aside.hash i.hash := by
-  intro i hi him
-  unfold Memory.Reachable
-  have hp : i.hash ∈ aside.pointers := h_pointers i hi
-  have h_step : PtrStep m aside.hash i.hash := by
-    unfold PtrStep
-    exact ⟨aside, h_mem, rfl, hp⟩
-  exact Steps.tail (Steps.refl aside.hash) h_step
+/-- If an info of the memory carries the hash of each of some experiences among its pointers, each of them is one pointer
+step from it. This is the definition of a pointer step. It needs no compression, and it does not say that the
+experiences are infos of the memory: `Memory.Reachable` does not ask its target to resolve, so the statement also holds
+of a pointer that names nothing. Until 2026-10-01 this was `subframe_experiences_remain_reachable`, with two hypotheses
+that no proof used. -/
+theorem pointed_experiences_one_step (m : Memory) (experiences : List Info) (aside : Info)
+    (h_mem : aside ∈ m.all) (h_pointers : ∀ i ∈ experiences, i.hash ∈ aside.pointers) :
+    ∀ i ∈ experiences, Memory.Reachable m aside.hash i.hash := by
+  intro i hi
+  exact Steps.tail (Steps.refl aside.hash) ⟨aside, h_mem, rfl, h_pointers i hi⟩
 
-/-- The "Planck Bound" of compression: You cannot compress an infinite stream of BruteFacts 
-    into a fixed-size `aside` because the number of structural pointers is bounded by `Token`. -/
-theorem planck_compression_bound (experiences : List Info) (aside : Info) :
+/-- Negative algorithmic entropy, unfolded: the aside holds fewer tokens than the experiences together. This is the
+definition read backwards, not a bound. Nothing in this library limits how far experiences can be compressed: against
+an aside of no tokens, experiences of `N` tokens have a compressibility of `N`, for every `N`. Until 2026-10-01 this was
+`planck_compression_bound`. -/
+theorem aside_shorter_of_negative_entropy (experiences : List Info) (aside : Info) :
     AlgorithmicEntropy experiences aside < 0 →
     aside.data.length < (experiences.map (fun i => i.data.length)).foldl Nat.add 0 := by
   intro h_ent

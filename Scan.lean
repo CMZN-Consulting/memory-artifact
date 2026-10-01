@@ -22,3 +22,5 @@ run_cmd do
     if ax.any (fun a => !std.contains a) then bad := bad.push (n, ax.filter (fun a => !std.contains a))
   logInfo m!"constants scanned: {total}, theorems: {thms}, with nonstandard axioms: {bad.size}"
   for (n, a) in bad.toList.take 40 do logInfo m!"{n}: {a}"
+  -- fail, so that a run in CI stops on the first constant that leans on `sorryAx` or on any axiom beyond Lean's three
+  unless bad.isEmpty do throwError "{bad.size} constants depend on a nonstandard axiom"

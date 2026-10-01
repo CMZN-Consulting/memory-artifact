@@ -272,7 +272,9 @@ before the first root is refused, invariant 10), and the day has not ended. -/
 def ToolCall.Ready (m : Memory) (c : ToolCall) : Prop := m.toolDecl c.tool ≠ none ∧ 1 ≤ m.today ∧ ¬m.dayEnded
 
 /-- What a call needs beyond that: the pointers it names resolve, to infos of the kinds the tool's append can point at, and
-the caps hold. -/
+the keep cap holds for a keeping. A consider carries no cap on the number of its targets: with as many targets as the
+return cap the call is valid, it appends a trace for each, and its digest lists one head fewer (a return points to its call
+and to at most `cap - 1` more; see `Ctx.returnDraft`). -/
 def ToolCall.Needs (Γ : Ctx) (m : Memory) : ToolCall → Prop
   | .recall _ | .reach _ | .ask _ _ | .hand _ | .stop => True
   | .consider ts _ chains => ts ≠ [] ∧ chains.length = ts.length ∧ (∀ ch ∈ chains, ch ≠ []) ∧ ∀ t ∈ ts, t ∈ m.hashes

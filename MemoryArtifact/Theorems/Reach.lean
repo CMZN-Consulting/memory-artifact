@@ -24,12 +24,43 @@ theorem total_reachability (Γ : Ctx) (m : Memory) (hwf : WellFormed Γ m) :
     ⟨(depth_bounds Γ m).1, (depth_bounds Γ m).2, heads_length_le m⟩,
     resolve_of_nodup m (wellFormed_hashes_nodup Γ m hwf)⟩
 
-/-- (19, 26) A derivation only points back: a pointer step goes to an earlier info, so pointer chains have no cycle. -/
+/-- (19, 26) A derivation only points back: a pointer step goes to an earlier info. This is invariant 2 read through
+`PtrStep`, and it speaks of one step. That no pointer path returns to its start is `no_pointer_cycle`, below. -/
 theorem ptrStep_seq_lt (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (x y : Pointer) (hs : PtrStep m x y) :
     ∃ a ∈ m.all, ∃ b ∈ m.all, a.hash = x ∧ b.hash = y ∧ b.seq < a.seq := by
   obtain ⟨a, ha, hax, hya⟩ := hs
   obtain ⟨b, hb, hby, hlt⟩ := h.resolves a ha y hya
   exact ⟨a, ha, b, hb, hax, hby, hlt⟩
+
+/-- Along a pointer path of `n` hops the arrival number falls by at least `n`. -/
+theorem ptrPath_seq_le (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) :
+    ∀ (n : Nat) (x y : Pointer), PtrPath m n x y →
+      ∀ a ∈ m.all, a.hash = x → ∃ b ∈ m.all, b.hash = y ∧ b.seq + n ≤ a.seq := by
+  intro n x y hp
+  induction hp with
+  | refl a => intro a' ha' hh; exact ⟨a', ha', hh, Nat.le_refl _⟩
+  | step hs _ ih =>
+    intro a ha hax
+    obtain ⟨i, hi, hix, hci⟩ := hs
+    have hia : i = a := eq_of_hash_eq_of_nodup h.appendOnly.distinct hi ha (hix.trans hax.symm)
+    subst hia
+    obtain ⟨j, hj, hjc, hlt⟩ := h.resolves i hi _ hci
+    obtain ⟨b, hb, hby, hle⟩ := ih j hj hjc
+    exact ⟨b, hb, hby, by omega⟩
+
+/-- Acyclicity: in a well-formed memory no pointer path of one hop or more returns to its start. (Added on 2026-10-01: an
+audit found that the docstring above claimed it and no theorem stated it; the proof is the auditor's.) -/
+theorem no_pointer_cycle (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (n : Nat) (x : Pointer) :
+    ¬PtrPath m (n + 1) x x := by
+  intro hp
+  cases hp with
+  | step hs hrest =>
+    obtain ⟨i, hi, hix, hci⟩ := hs
+    obtain ⟨b, hb, hbx, hle⟩ :=
+      ptrPath_seq_le Γ m h (n + 1) x x (PtrPath.step ⟨i, hi, hix, hci⟩ hrest) i hi hix
+    have : b = i := eq_of_hash_eq_of_nodup h.appendOnly.distinct hb hi (hbx.trans hix.symm)
+    subst this
+    omega
 
 /-! ## Theorem 4: bounded serving -/
 
@@ -80,7 +111,10 @@ end ReachAux
 4. A closure paged by a page terminates: it is `⌈length / page⌉` pages.
 5. The closure terminates and is the closure of section 2.
 6. A span of an info is served, page by page, in pieces of at most a page that put end to end are exactly the span's part of the
-   canonical form, and the cursor that counts them reaches the end of the span within `⌈length / page⌉` pages. -/
+   canonical form, and the cursor that counts them reaches the end of the span within `⌈length / page⌉` pages. (That last
+   clause is arithmetic on the span's declared length: `Cursor.serveN` reads neither the info nor the pages, so for a span
+   declared longer than its info the cursor counts tokens that no page served. At the tool the span's length is the
+   stream's own.) -/
 theorem bounded_serving (Γ : Ctx) (m : Memory) (start : List Hash) (hwf : WellFormed Γ m) :
     (∀ i ∈ m.all, i.isReturn = true → i.data.length ≤ Γ.p.cap ∧ i.pointers.length ≤ Γ.p.cap ∧ i.size ≤ 2 * Γ.p.cap) ∧
     (∀ pg ∈ serve Γ m start, pg.length ≤ Γ.p.page) ∧

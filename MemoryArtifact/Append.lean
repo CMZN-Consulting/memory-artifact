@@ -15,7 +15,8 @@ namespace MemoryArtifact
 
 /-! ## Refusal -/
 
-/-- Why an append is refused: the number of the first invariant (in the order of section 13) that it would break. -/
+/-- Why an append is refused: the number of the first invariant (in the order of section 13) that it would break. The
+reason `refusal` (8) is never returned: its local check is implied by that of invariant 1, which runs first. -/
 inductive Refusal where
   | appendOnly | resolves | envelope | arity | writers | frame | bounded | refusal | retire | days | targets | work
   deriving DecidableEq, Repr
@@ -250,7 +251,7 @@ theorem append_refused (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (r : Refus
   by_cases c4 : LocArity i
   case neg =>
     rw [if_pos c4] at hr; cases hr
-    exact fun hp => c4 ((push_arity Γ m l i h.arity).1 hp)
+    exact fun hp => c4 ((push_arity m l i h.arity).1 hp)
   rw [if_neg (not_not_intro c4)] at hr
   by_cases c5 : LocWriters Γ l i
   case neg =>
@@ -265,17 +266,17 @@ theorem append_refused (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (r : Refus
   by_cases c7 : LocBounded Γ m i
   case neg =>
     rw [if_pos c7] at hr; cases hr
-    exact fun hp => c7 ((push_bounded Γ m l i h.appendOnly h.resolves h.bounded c1 c3.2).1 hp)
+    exact fun hp => c7 ((push_bounded Γ m l i h.resolves h.bounded c1 c3.2).1 hp)
   rw [if_neg (not_not_intro c7)] at hr
   by_cases c8 : LocRefusal i
   case neg =>
     rw [if_pos c8] at hr; cases hr
-    exact fun hp => c8 ((push_refusal Γ m l i h.refusal).1 hp)
+    exact fun hp => c8 ((push_refusal m l i h.refusal).1 hp)
   rw [if_neg (not_not_intro c8)] at hr
   by_cases c9 : LocRetire m l i
   case neg =>
     rw [if_pos c9] at hr; cases hr
-    exact fun hp => c9 ((push_retire Γ m l i h.appendOnly h.resolves h.retire c1).1 hp)
+    exact fun hp => c9 ((push_retire Γ m l i h.resolves h.retire c1).1 hp)
   rw [if_neg (not_not_intro c9)] at hr
   by_cases c10 : LocDays m l i
   case neg =>
@@ -290,7 +291,7 @@ theorem append_refused (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (r : Refus
   by_cases c12 : LocWork m i
   case neg =>
     rw [if_pos c12] at hr; cases hr
-    exact fun hp => c12 ((push_work Γ m l i h.appendOnly h.resolves h.work c1 c2 c3.2).1 hp)
+    exact fun hp => c12 ((push_work Γ m l i h.resolves h.work c1 c3.2).1 hp)
   rw [if_neg (not_not_intro c12)] at hr
   cases hr
 

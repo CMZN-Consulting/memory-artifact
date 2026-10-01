@@ -37,10 +37,10 @@ theorem bfs_sound (adj : Hash → List Hash) (n : Nat) (vis : List Hash) :
         obtain ⟨⟨z, hz, hxz⟩, _⟩ := hx
         exact ⟨z, hz, steps_head hxz hs⟩
 
-set_option linter.unusedVariables false in
-/-- The search terminates with a closed set: on a universe `U` of distinct hashes that `adj` never leaves, `|U|` rounds
-are enough (`hn`), whatever has been visited already. -/
-theorem bfs_closed (adj : Hash → List Hash) (U : List Hash) (hU : U.Nodup) (hadj : ∀ x ∈ U, ∀ y ∈ adj x, y ∈ U)
+/-- The search terminates with a closed set: on a universe `U` that `adj` never leaves, `|U|` rounds are enough (`hn`),
+whatever has been visited already. `U` may list a hash twice; what the count needs is that the visited list does not
+(`hnd`). -/
+theorem bfs_closed (adj : Hash → List Hash) (U : List Hash) (hadj : ∀ x ∈ U, ∀ y ∈ adj x, y ∈ U)
     (n : Nat) (vis : List Hash) (hvis : ∀ x ∈ vis, x ∈ U) (hnd : vis.Nodup) (hn : U.length ≤ n + vis.length) :
     ∀ x ∈ bfs adj n vis, ∀ y ∈ adj x, y ∈ bfs adj n vis := by
   induction n generalizing vis with
@@ -85,12 +85,12 @@ theorem bfs_closed (adj : Hash → List Hash) (U : List Hash) (hU : U.Nodup) (ha
         omega
 
 /-- ... and complete: everything reached from the start by steps is returned. -/
-theorem bfs_complete (adj : Hash → List Hash) (U : List Hash) (hU : U.Nodup) (hadj : ∀ x ∈ U, ∀ y ∈ adj x, y ∈ U)
+theorem bfs_complete (adj : Hash → List Hash) (U : List Hash) (hadj : ∀ x ∈ U, ∀ y ∈ adj x, y ∈ U)
     (n : Nat) (vis : List Hash) (hvis : ∀ x ∈ vis, x ∈ U) (hnd : vis.Nodup) (hn : U.length ≤ n + vis.length) :
     ∀ x ∈ vis, ∀ y, Steps (AdjStep adj) x y → y ∈ bfs adj n vis := by
   intro x hx y hs
   induction hs with
   | refl => exact bfs_subset adj n vis _ hx
-  | tail _ hbc ih => exact bfs_closed adj U hU hadj n vis hvis hnd hn _ ih _ hbc
+  | tail _ hbc ih => exact bfs_closed adj U hadj n vis hvis hnd hn _ ih _ hbc
 
 end MemoryArtifact

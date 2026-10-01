@@ -157,9 +157,9 @@ theorem mem_thread_iff (m : Memory) (x y : Hash) (hx : x ∈ m.entryHashes) :
     subst hx'
     exact hs
   · intro hs
-    obtain ⟨hU, hUlen⟩ := ThreadAux.eraseDups_nodup_length_le _ m.entryHashes (Nat.le_refl _)
+    obtain ⟨-, hUlen⟩ := ThreadAux.eraseDups_nodup_length_le _ m.entryHashes (Nat.le_refl _)
     have hlen := ThreadAux.entryHashes_length_le m
-    refine bfs_complete m.threadAdj m.entryHashes.eraseDups hU ?_ m.count [x] ?_ (List.nodup_cons.2 ⟨by simp, List.nodup_nil⟩) ?_ x
+    refine bfs_complete m.threadAdj m.entryHashes.eraseDups ?_ m.count [x] ?_ (List.nodup_cons.2 ⟨by simp, List.nodup_nil⟩) ?_ x
       (List.mem_singleton_self x) y hs
     · intro a _ b hb
       exact List.mem_eraseDups.2 (ThreadAux.mem_threadAdj hb).1
@@ -178,10 +178,10 @@ theorem thread_link (m : Memory) (x y : Hash) (hx : x ∈ m.entryHashes) (hy : y
   obtain ⟨_, e, he, _, _, hor⟩ := ThreadAux.mem_threadAdj hab
   exact ⟨e, he, hor⟩
 
-set_option linter.unusedVariables false in
-/-- (29) Every entry that is not retired is in the thread of a head. Needs only that the arrival numbers are distinct
-(they are: invariant 1). -/
-theorem exists_head (m : Memory) (hseq : (m.all.map (·.seq)).Nodup) (x : Info) (hx : x ∈ m.entries)
+/-- (29) Every entry that is not retired is in the thread of a head. It holds for every memory: no invariant is
+needed. (That a thread has at most one head would need the arrival numbers to be distinct; that statement is not
+proved in this library.) -/
+theorem exists_head (m : Memory) (x : Info) (hx : x ∈ m.entries)
     (hr : ¬m.retired x) : ∃ h ∈ m.heads, x.hash ∈ m.thread h.hash := by
   have hxE := ThreadAux.hash_mem_entryHashes hx
   let S := m.entries.filter (fun y => decide (y.hash ∈ m.thread x.hash) && decide (¬m.retired y))
@@ -216,7 +216,7 @@ theorem heads_not_retired (m : Memory) : ∀ h ∈ m.heads, ¬m.retired h := by
   unfold Memory.heads at hh
   exact (of_decide_eq_true (List.mem_filter.1 hh).2).2.1
 
-/-- There are no more heads than entries, and no more entries than infos. -/
+/-- There are no more heads than entries. -/
 theorem heads_length_le (m : Memory) : m.heads.length ≤ m.entries.length := by
   unfold Memory.heads
   exact List.length_filter_le _ _

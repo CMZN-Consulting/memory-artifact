@@ -230,8 +230,7 @@ theorem push_envelope (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h1 : Appen
       exact hd
     · exact ⟨hloc.1.trans hnew.symm, hloc.2⟩
 
-set_option linter.unusedVariables false in
-theorem push_arity (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h : ArityOk m) :
+theorem push_arity (m : Memory) (l : LogId) (i : Info) (h : ArityOk m) :
     ArityOk (m.push l i) ↔ LocArity i := by
   constructor
   · intro ha
@@ -252,8 +251,7 @@ theorem push_writers (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h : Writers
     · exact h l' hl' x hx
     · exact hloc
 
-set_option linter.unusedVariables false in
-theorem push_refusal (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h : RefusalOk m) :
+theorem push_refusal (m : Memory) (l : LogId) (i : Info) (h : RefusalOk m) :
     RefusalOk (m.push l i) ↔ LocRefusal i := by
   constructor
   · intro hr
@@ -266,10 +264,9 @@ theorem push_refusal (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h : Refusal
 
 /-! ## The second version's invariants -/
 
-set_option linter.unusedVariables false in
 /-- Invariant 9: pushing an info keeps retirement by the writer alone exactly when the local check holds. Needs that
 the pointers of the memory resolve: a pointer that dangled could name the hash of the info being pushed. -/
-theorem push_retire (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h1 : AppendOnly Γ m) (hres : Resolves m)
+theorem push_retire (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (hres : Resolves m)
     (h : RetireOk m) (hl : LocAppendOnly Γ m l i) : RetireOk (m.push l i) ↔ LocRetire m l i := by
   have hi : i ∈ (m.push l i).all := (mem_all_push m l i i).2 (Or.inr rfl)
   constructor
@@ -360,10 +357,9 @@ theorem push_targets (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h1 : Append
       rw [hseq]
       exact seq_lt_count_of_appendOnly h1 hj
 
-set_option linter.unusedVariables false in
-/-- Invariant 13 (work): `he` puts a page in the private store; `hr` is that the pointers of the info resolve. -/
-theorem push_work (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h1 : AppendOnly Γ m) (hres : Resolves m)
-    (h : WorkOk m) (hl : LocAppendOnly Γ m l i) (hr : LocResolves m i) (he : Kind.allowedIn l i.kind = true) :
+/-- Invariant 13 (work): `he` puts a page in the private store; `hres` is that the pointers of the memory resolve. -/
+theorem push_work (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (hres : Resolves m)
+    (h : WorkOk m) (hl : LocAppendOnly Γ m l i) (he : Kind.allowedIn l i.kind = true) :
     WorkOk (m.push l i) ↔ LocWork m i := by
   have hi : i ∈ (m.push l i).all := (mem_all_push m l i i).2 (Or.inr rfl)
   -- the task of a page already in the memory does not change

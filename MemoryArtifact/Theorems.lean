@@ -15,4 +15,8 @@ bounded root, the structure's independence of the ranker, no last day), `Reach` 
 serving), `Determinism` (T3), `AppendOnly` (T5 and the refusal of an oversize return) and `Lookups` (what a lookup can return).
 T6 to T10 are in `Lookup.lean`, T11 and T13 to T14 in `Tools/`, T12 in `Traversal.lean`. No `sorry` and no axiom beyond
 Lean's own (`propext`, `Classical.choice`, `Quot.sound`) stand behind any of them.
+
+Two more files are imported here and are not theorems of the design record: `Epistemic` and `Compression` hold seven small
+lemmas on a vocabulary added on 2026-09-27 (`Epistemic.lean`). Each is immediate from its definitions, and none is tied to
+`WellFormed`, to `Derivable` or to a tool.
 -/

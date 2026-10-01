@@ -26,8 +26,10 @@ theorem reach_only_seen (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (q : Query
     · exact (h.writers .storePrivate (by simp [LogId.all]) x hx').2.1 (by simp) hf
     · exact (h.writers .storeShared (by simp [LogId.all]) x hx').2.1 (by simp) hf
 
-/-- (62) What is filed is never placed into a context unasked: no page of a well-formed memory points to an info of kind filed
-(a page is the seen infos a model is given to read; a filed info is reached, not placed). -/
+/-- (62) The part of "what is filed is never placed into a context unasked" that this model states: no page of a well-formed
+memory points to an info of kind filed (a page is the seen infos a model is given to read; a filed info is reached, not
+placed). A root is not covered by the statement: a well-formed memory can hold a root that points to a filed info and shows
+its first tokens. -/
 theorem filed_never_placed (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) :
     ∀ pg ∈ m.all, pg.kind = .page → ∀ p ∈ pg.pointers, ∀ j ∈ m.all, j.hash = p → j.kind ≠ .filed := by
   intro pg hpg hk p hp j hj hjp
@@ -39,9 +41,10 @@ theorem filed_never_placed (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) :
   rw [hf] at hok
   simp [Kind.targetOk] at hok
 
-/-- (design record section 18g) The policies of a well-formed memory are a chain: each is an info of the shared store, points to at
-most one info, and that one is an earlier policy. The first (epoch 0) points to none; the chain is the index's history and the log
-holds it. -/
+/-- (design record section 18g) The policies of a well-formed memory point backwards: each is an info of the shared store, points
+to at most one info, and that one is an earlier policy. That is a forest, not a chain: the statement does not say that only one
+policy points to none, nor that no two point to the same one, and a memory the harness reaches can hold both. The name is the
+design record's; the log holds the index's history in this weaker sense. -/
 theorem policy_chain (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) :
     ∀ i ∈ m.all, i.kind = .policy →
       i ∈ m.storeShared ∧ i.pointers.length ≤ 1 ∧

@@ -43,7 +43,8 @@ def Memory.vectorSide (Γ : Ctx) (m : Memory) (s : Scope) (words : Data) (p : Po
   (Γ.ranker m words p).filter (fun x => decide (x ∈ m.scopeInfos s))
 
 /-- (T7) Fusion of the two sides: the lexical candidates in their order, then what only the vector side found. (It is a
-concatenation with de-duplication, not a rank-score fusion: no claim about relevance or order within a side.) -/
+concatenation that drops from the vector side what the lexical side already has, not a rank-score fusion: no claim about
+relevance or order within a side. Neither side is de-duplicated in itself: an info a ranker returns twice is served twice.) -/
 def fuse (lex vec : List Info) : List Info := lex ++ vec.filter (fun x => !lex.contains x)
 
 /-- Lookup by words under a policy: the fusion of the two sides. -/
@@ -259,8 +260,9 @@ theorem fused_return_paged (Γ : Ctx) (m : Memory) (s : Scope) (words : Data) (p
     exact List.prefix_take_iff.mpr ⟨hpre, hle⟩
 
 /-- T8, the policy is identified by its three parts: the key (lexical version, embedder hash, anchor hashes) determines the
-policy, and the reason recorded after it in a policy info is recoverable, so a call that records the words and points to a
-policy info names exactly the lookup it made. -/
+policy. This statement is the injectivity of the key and nothing more. That the reason recorded after the key is
+recoverable is `policy_decode_key`; that a recorded lookup is replayed from the log is `lookup_replayable`
+(`Conformance.lean`). -/
 theorem policy_key_injective (p p' : Policy) (h : p.key = p'.key) : p = p' := by
   obtain ⟨lv, eh, an⟩ := p
   obtain ⟨lv', eh', an'⟩ := p'

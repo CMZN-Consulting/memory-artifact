@@ -164,7 +164,10 @@ theorem toolMem_derivable (Γ : Ctx) : Derivable Γ (toolMem Γ) := by
 
 /-- The literal reading of Theorem 2 ("every info of the memory is reachable from the root within depth + 1 hops") is false:
 in a derivable memory whose only info is a tool, the tool is not in the closure of the root (over derivations and relation
-edges, in either direction). Nothing in the catalogue points at a tool. -/
+edges, in either direction). In this memory the root points to nothing at all, which is why the witness is so small. It
+would be wrong to say that nothing in the catalogue points at a tool: a call's first pointer is its tool's declaration
+(`Kind.firstOk`), so in a memory with calls a declaration can lie in the closure of a root. The literal reading fails all
+the same for every info that nothing the root reaches points to. -/
 theorem literal_reachability_false (Γ : Ctx) :
     Derivable Γ (toolMem Γ) ∧ toolInfo Γ ∈ (toolMem Γ).toolkit ∧
       ¬(startDay Γ (toolMem Γ)).InClosure (root Γ (toolMem Γ)).hash (toolInfo Γ).hash := by

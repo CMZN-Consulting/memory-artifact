@@ -392,8 +392,9 @@ theorem mem_of_head?_eq_some {α : Type} {l : List α} {a : α} (h : l.head? = s
   | nil => simp at h
   | cons b t => simp at h; simp [h]
 
-/-- The return to a lookup by words, computed from the log before the call, the words the call recorded and the policy its
-derivation points to. -/
+/-- What T8 pins of the return to a lookup by words: its data is its arrival number followed by the first page of the lookup,
+computed from the log before the call, the words the call recorded and the policy its derivation points to. The return's
+pointers, kind and writer are not part of this statement. -/
 def LookupReplay (Γ : Ctx) (M : Memory) (call ret : Info) : Prop :=
   ret.data = ret.seq :: (canonAll (lookupWordsUnder Γ (M.arrivedBefore call.seq)
     (if call.data[1]? = some ToolId.recall.code then .own else .store) (call.data.drop 3) (M.policyOfCall call))).take
@@ -545,8 +546,8 @@ theorem lookupReplay_of_shape (Γ : Ctx) (m : Memory) (c : ToolCall) (call ret :
   | hand rd => simp [ToolCall.tool, ToolId.code] at hcode
   | stop => simp [ToolCall.tool, ToolId.code] at hcode
 
-/-- T8 in a memory the harness reached: the return to a lookup by words is the replay of the lookup from the log before the
-call, under the policy the call points to, by induction on how the memory was reached. -/
+/-- T8 in a memory the harness reached: the data of the return to a lookup by words is the replay of the lookup from the log
+before the call, under the policy the call points to, by induction on how the memory was reached. -/
 theorem lookup_replayable_aux (Γ : Ctx) (m : Memory) (hd : Derivable Γ m) :
     ∀ call ret : Info, call ∈ m.hippocampus → ret ∈ m.storePrivate → LookupCase call ret →
       LookupReplay Γ m call ret := by
