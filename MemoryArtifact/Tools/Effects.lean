@@ -25,8 +25,8 @@ theorem keeping_effect (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (t : Option
   generalize hC : mkInfo Γ m .hippocampus (Γ.callDraft m (.keeping t w) decl) = C at heq hr
   have hp : t.getD C.hash ∈ (m.push .hippocampus C).hashes := by
     cases t with
-    | none => exact mem_hashes_of_mem hr.all1
-    | some t => exact hr.hashes1 (ht t rfl)
+    | none => exact mem_hashes_of_mem Recorded.all1
+    | some t => exact Recorded.hashes1 (ht t rfl)
   have hok := ok_keep hr.wf1 hr.one_le1 hr.notEnded1 _ hp (by rw [hr.liveKeeps1]; exact hc)
   generalize hK : mkInfo Γ (m.push .hippocampus C) .hippocampus
     { writer := Γ.self, kind := .keep, data := [], pointers := [t.getD C.hash] } = K at hok
@@ -82,7 +82,7 @@ theorem file_effect (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (w : Data) (ss
   have hr := recorded_of_valid h hv hd
   obtain ⟨hss, hne⟩ := hv.2
   generalize hC : mkInfo Γ m .hippocampus (Γ.callDraft m (.file w ss) decl) = C at heq hr
-  have hok := ok_filed hr.wf1 w ss (fun s hs => hr.hashes1 (hss s hs)) (by rw [hr.todayTask1]; exact hne)
+  have hok := ok_filed hr.wf1 w ss (fun s hs => Recorded.hashes1 (hss s hs)) (by rw [hr.todayTask1]; exact hne)
   generalize hF : mkInfo Γ (m.push .hippocampus C) .storeShared (Γ.expDraft (m.push .hippocampus C) .filed w ss) = F
     at hok
   have hstep : toolStep Γ m (.file w ss) =

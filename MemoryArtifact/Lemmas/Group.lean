@@ -571,10 +571,9 @@ theorem climb_levels (Γ : Ctx) (n : Nat) (m : Memory) (lvl : List Hash) (r : Na
       omega
 
 /-- Every item of the bottom level is reached from the top by at most `levels - r` steps of derivation. -/
-theorem climb_hops (Γ : Ctx) (n : Nat) (m : Memory) (lvl : List Hash) (r : Nat) (hn : lvl.length ≤ n) :
+theorem climb_hops (Γ : Ctx) (n : Nat) (m : Memory) (lvl : List Hash) (r : Nat) :
     ∀ x ∈ lvl, ∃ t ∈ (climb Γ n m lvl r).top, ∃ j ≤ levelsFor Γ.p.k n lvl.length,
-      PtrPath (climb Γ n m lvl r).mem j t x := by
-  -- the fuel bound is not needed: with too little fuel `climb` stops early and the top still covers the level
-  exact (fun _ : lvl.length ≤ n => climb_hops_aux Γ n m lvl r) hn
+      PtrPath (climb Γ n m lvl r).mem j t x :=
+  climb_hops_aux Γ n m lvl r
 
 end MemoryArtifact

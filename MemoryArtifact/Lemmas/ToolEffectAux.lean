@@ -153,7 +153,7 @@ theorem act_step (Γ : Ctx) (m : Memory) (h : WellFormed Γ m) (r : Recipe) (d :
       intro p hp
       simp only [List.mem_singleton] at hp
       subst hp
-      exact ⟨C, hr.all1, rfl, by simp [Kind.targetOk, hr.kind], fun _ => by simp [Kind.firstOk, hr.kind]⟩)
+      exact ⟨C, Recorded.all1, rfl, by simp [Kind.targetOk, hr.kind], fun _ => by simp [Kind.firstOk, hr.kind]⟩)
     (by simp [Kind.targetOk]) (fun h => by simp at h)
   generalize hR : mkInfo Γ (m.push .hippocampus C) .hippocampus
     (Γ.expDraft (m.push .hippocampus C) .recipe [r] [C.hash]) = R at hok1

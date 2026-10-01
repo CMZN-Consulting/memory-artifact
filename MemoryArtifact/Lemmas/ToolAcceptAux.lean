@@ -442,10 +442,10 @@ theorem one_le1 (hr : Recorded Γ m callI) : 1 ≤ (m.push .hippocampus callI).t
 theorem notEnded1 (hr : Recorded Γ m callI) : ¬(m.push .hippocampus callI).dayEnded :=
   not_dayEnded_push hr.notEnded (by rw [hr.kind]; rfl) (by rw [hr.kind]; simp) (by rw [hr.kind]; simp)
 
-theorem mem1 (_hr : Recorded Γ m callI) : callI ∈ (m.push .hippocampus callI).hippocampus := by
+theorem mem1 : callI ∈ (m.push .hippocampus callI).hippocampus := by
   simp [Memory.push]
 
-theorem all1 (_hr : Recorded Γ m callI) : callI ∈ (m.push .hippocampus callI).all :=
+theorem all1 : callI ∈ (m.push .hippocampus callI).all :=
   mem_all_of_hip (by simp [Memory.push])
 
 theorem todayTask1 (hr : Recorded Γ m callI) : (m.push .hippocampus callI).todayTask = m.todayTask :=
@@ -454,7 +454,7 @@ theorem todayTask1 (hr : Recorded Γ m callI) : (m.push .hippocampus callI).toda
 theorem liveKeeps1 (hr : Recorded Γ m callI) : (m.push .hippocampus callI).liveKeeps = m.liveKeeps :=
   liveKeeps_push_hip (by rw [hr.kind]; rfl) (by rw [hr.kind]; simp)
 
-theorem hashes1 (_hr : Recorded Γ m callI) {p : Hash} (hp : p ∈ m.hashes) :
+theorem hashes1 {p : Hash} (hp : p ∈ m.hashes) :
     p ∈ (m.push .hippocampus callI).hashes :=
   (grows_push _ _ _).hashes hp
 
@@ -464,7 +464,7 @@ theorem accepted_serve (hr : Recorded Γ m callI) (M : Memory) (hM : WellFormed 
     (hg : Grows (m.push .hippocampus callI) M) (ht : M.today = m.today) (t : ToolId) (rk : ReturnKind)
     (hrk : rk ≠ .refusal) (body : Data) (extra : List Hash) (hex : ∀ h ∈ extra, h ∈ M.hashes) (sp : Span) :
     Accepted Γ m t (serveReturnAt Γ t M callI.hash rk body extra sp).1 := by
-  have hc : callI ∈ M.hippocampus := hg.hip hr.mem1
+  have hc : callI ∈ M.hippocampus := hg.hip Recorded.mem1
   obtain ⟨_, h1⟩ := serveReturnAt_accepted Γ t M hM callI hc hr.kind rk body extra hex sp
   rw [h1]
   refine ⟨callI, by simp [Memory.push, hc], mkInfo Γ M .storePrivate (Γ.returnDraft t rk callI.hash body extra),
@@ -637,13 +637,13 @@ theorem accept_lookup (hr : Recorded Γ m callI) (t : ToolId) (s : Scope) (q : Q
     by_cases h1 : body.isEmpty = true <;> by_cases h2 : Γ.p.page < body.length <;> simp [h1, h2]
   · intro p hp
     obtain ⟨x, hx, rfl⟩ := List.mem_map.mp hp
-    exact hr.hashes1 (mem_hashes_of_mem (lookupQuery_mem Γ m s q m.currentPolicy x hx))
+    exact Recorded.hashes1 (mem_hashes_of_mem (lookupQuery_mem Γ m s q m.currentPolicy x hx))
 
 /-- (55) A consider serves its digest: its traces never fail. -/
 theorem accept_consider (hr : Recorded Γ m callI) (ts : List Pointer) (q : Data) (chains : List (List Data)) :
     Accepted Γ m .consider (toolEffect Γ m (.consider ts q chains) (m.push .hippocampus callI) callI.hash) := by
   obtain ⟨M2, hs, heq, hM2, ht2, hg2, hhs⟩ := considerTraces_some callI.hash ts chains (m.push .hippocampus callI) []
-    hr.wf1 hr.one_le1 hr.notEnded1 ⟨callI, hr.all1, rfl, hr.kind⟩ (by simp)
+    hr.wf1 hr.one_le1 hr.notEnded1 ⟨callI, Recorded.all1, rfl, hr.kind⟩ (by simp)
   simp only [toolEffect]
   rw [heq]
   exact hr.accepted_serve M2 hM2 hg2 (ht2.trans hr.today1) .consider .digest (by simp) _ hs hhs _
@@ -655,8 +655,8 @@ theorem accept_keeping (hr : Recorded Γ m callI) (target : Option Pointer) (w :
   obtain ⟨ht, hc⟩ := hn
   have hp : target.getD callI.hash ∈ (m.push .hippocampus callI).hashes := by
     cases target with
-    | none => exact mem_hashes_of_mem hr.all1
-    | some t => exact hr.hashes1 (ht t rfl)
+    | none => exact mem_hashes_of_mem Recorded.all1
+    | some t => exact Recorded.hashes1 (ht t rfl)
   have hok := ok_keep hr.wf1 hr.one_le1 hr.notEnded1 _ hp (by rw [hr.liveKeeps1]; exact hc)
   simp only [toolEffect]
   rw [tryDraft_of_ok hok]
@@ -683,7 +683,7 @@ theorem accept_relate (hr : Recorded Γ m callI) (e : EdgeKind) (a b : Pointer)
 theorem accept_file (hr : Recorded Γ m callI) (w : Data) (ss : List Pointer) (hn : (ToolCall.file w ss).Needs Γ m) :
     Accepted Γ m .file (toolEffect Γ m (.file w ss) (m.push .hippocampus callI) callI.hash) := by
   obtain ⟨hss, hne⟩ := hn
-  have hok := ok_filed hr.wf1 w ss (fun s hs => hr.hashes1 (hss s hs)) (by rw [hr.todayTask1]; exact hne)
+  have hok := ok_filed hr.wf1 w ss (fun s hs => Recorded.hashes1 (hss s hs)) (by rw [hr.todayTask1]; exact hne)
   simp only [toolEffect]
   rw [tryDraft_of_ok hok]
   exact hr.accepted_serve _ (wellFormed_push_of_ok hr.wf1 hok) (grows_push _ _ _)
@@ -765,7 +765,7 @@ theorem accept_act (hr : Recorded Γ m callI) (r : Recipe) (d : Data) (hn : (Too
       intro p hp
       simp only [List.mem_singleton] at hp
       subst hp
-      exact ⟨callI, hr.all1, rfl, by simp [Kind.targetOk, hr.kind], fun _ => by simp [Kind.firstOk, hr.kind]⟩)
+      exact ⟨callI, Recorded.all1, rfl, by simp [Kind.targetOk, hr.kind], fun _ => by simp [Kind.firstOk, hr.kind]⟩)
     (by simp [Kind.targetOk]) (fun h => by simp at h)
   obtain ⟨R, hR⟩ : ∃ R, R = mkInfo Γ (m.push .hippocampus callI) .hippocampus
       (Γ.expDraft (m.push .hippocampus callI) .recipe [r] [callI.hash]) := ⟨_, rfl⟩

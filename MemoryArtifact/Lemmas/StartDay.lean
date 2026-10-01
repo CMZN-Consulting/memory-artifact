@@ -137,7 +137,7 @@ theorem heads_within_depth (Γ : Ctx) (m : Memory) :
     ∀ x ∈ m.heads, ∃ n ≤ depth Γ m + 1, PtrPath (startDay Γ m) n (root Γ m).hash x.hash := by
   intro x hx
   obtain ⟨t, ht, j, hj, hp⟩ :=
-    climb_hops Γ m.heads.length m (m.heads.map (fun i : Info => i.hash)) 0 (by simp) x.hash (List.mem_map_of_mem hx)
+    climb_hops Γ m.heads.length m (m.heads.map (fun i : Info => i.hash)) 0 x.hash (List.mem_map_of_mem hx)
   have he : (m.grouped Γ).mem.Extends (startDay Γ m) := by
     rw [startDay_eq_push]
     exact StartDayAux.extends_push _ _ _
