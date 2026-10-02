@@ -5,16 +5,17 @@ import MemoryArtifact.Tools.Effects
 # The individual's stop line (amendment B, a candidate)
 
 Amendment B lets the hippocampus take a stop offered by the individual (`Kind.offerableIn`), and lets invariant 10 admit
-a stop after the end of a day as it admits the night. This file shows that the amendment does what it says, on every
-memory and on the witness of `Nonvacuous.lean`.
+a stop after the end of a day as it admits the night. This file shows that the amendment does what it says, under the
+hypotheses each theorem states, and on the witness of `Nonvacuous.lean`.
 
 A note on naming. The design record calls "the bare line stop:" the line by which the individual calls the tool `stop`
 (the pass notes on tool lines). The stop line of this file is the memory's side of the same act when no tool call is
 possible: an offer of a `stop` info, with no call and no return. Which of the two the harness performs for a given line
-of the individual's is the harness's choice and is outside this model; the model holds both routes, and a reader of the
-memory tells them apart by the call and the return that stand before the tool's stop and not before the line.
+of the individual's is the harness's choice and is outside this model; the model holds both routes. The `stop` info alone
+does not tell them apart (a line with empty data has the shape of the tool's stop): the call and the return that stand
+before the tool's stop and not before a line are where a reader looks, and no theorem here states that they suffice.
 
-What is proved, on every memory:
+What is proved, under the hypotheses each states:
 
 * `ok_stopLine`: on a well-formed memory on which a day has been lived, the individual's stop line (writer the
   individual, kind `stop`, today's task as its pointers) passes every local check in the hippocampus. Nothing else is
@@ -126,12 +127,14 @@ def opsW4 : List Op :=
   ops₁ ++ ops₂a ++ [.offer .hippocampus lineOpen, .tool (.recall (.words [500])), .offer .hippocampus nightAfter]
 
 /-- The four witnesses of the stop line, decided by the kernel.
-    1. On a first day with no tool declared, the line is taken: the hippocampus holds one `stop` info and the day has
-       ended.
+    1. On a first day, with the tool `stop` not declared (`toolDecl .stop = none`), the line is taken: the hippocampus
+       holds one `stop` info and the day has ended.
     2. After day 1's hand-over, the line is taken: the hippocampus grows by one `stop` info, which points to the task.
-    3. After day 2's call of the tool `stop`, the line is taken: day 2 then holds two `stop` infos.
-    4. On day 2, open and with the tools declared, the line is taken and ends the day; a call of `recall` after it is
-       refused (the hippocampus does not grow); the night is still taken.
+    3. After day 2's call of the tool `stop`, the line is taken: day 2 then holds two `stop` infos (the statement counts
+       them; that one is the tool's and one the line follows from the run `opsW3`, not from the statement).
+    4. On day 2, open (`¬ mem₂.dayEnded`; that the tools are declared follows from the run, and is not stated), the line
+       is taken and ends the day; a call of `recall` after it leaves the hippocampus as it was (the refusal record is not
+       stated); the night is still taken.
     Each run is one the harness performs (`NonvacAux.derivable_replay`: every offer is of a kind a caller may offer). -/
 theorem stopLine_witnesses :
     dayFirst.toolDecl .stop = none ∧
@@ -172,7 +175,9 @@ def bareStop : Draft := { writer := 1, kind := .stop, data := [7], pointers := [
     1. Before the first day: invariant 10 (no experience before the first root).
     2. Under the desk's name (3): invariant 5 (the hippocampus is the individual's).
     3. On day 1, a day of work, without the task: invariant 13.
-    4. With data that does not open with its arrival number: invariant 1 (a numbered kind opens its data with it). -/
+    4. With data that does not open with its arrival number: invariant 1. Its local check is a conjunction; that it
+       fails on the numbering, and not on the hash, the history pointer or the arrival number, is by the construction of
+       `unnumbered`, not by the statement. -/
 theorem stopLine_refusals :
     refusalOf ctx Memory.empty .hippocampus (mkInfo ctx Memory.empty .hippocampus (ctx.lineDraft Memory.empty [7])) =
         some .days ∧
