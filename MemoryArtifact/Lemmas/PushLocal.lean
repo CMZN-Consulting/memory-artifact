@@ -307,8 +307,8 @@ theorem push_days (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h1 : AppendOnl
         have := hb' j (hold j hj) i hi hjn hn hjd
         have := hlt j hj
         omega
-      · intro hn j hj hjk hjd
-        exact hn (hc' i hi j (hold j hj) hjk hjd (hlt j hj))
+      · intro hn hs j hj hjk hjd
+        exact (hc' i hi j (hold j hj) hjk hjd (hlt j hj)).elim hn hs
     · intro hloc
       obtain ⟨hla, hlb, hlc⟩ := hloc rfl
       refine ⟨?_, ?_, ?_⟩
@@ -328,8 +328,10 @@ theorem push_days (Γ : Ctx) (m : Memory) (l : LogId) (i : Info) (h1 : AppendOnl
         · have := hlt x hx'
           omega
         · by_cases hn : x.kind = .night
-          · exact hn
-          · exact absurd hd (hlc hn j hj' hjk)
+          · exact Or.inl hn
+          · by_cases hs : x.kind = .stop
+            · exact Or.inr hs
+            · exact absurd hd (hlc hn hs j hj' hjk)
         · omega
   · have hh : (m.push l i).hippocampus = m.hippocampus := log_push_other m l .hippocampus i (Ne.symm hlh)
     unfold DaysOk

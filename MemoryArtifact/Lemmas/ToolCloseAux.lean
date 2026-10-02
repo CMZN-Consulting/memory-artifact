@@ -264,7 +264,7 @@ theorem call_ok_tc (Γ : Ctx) (m : Memory) (hm : WellFormed Γ m) (c : ToolCall)
   · exact ⟨fun _ => rfl, fun h => absurd rfl h, (fun h => nomatch h), (fun h => nomatch h), fun h => by
       rcases h with h | h <;> exact nomatch h⟩
   · exact ⟨(fun h => nomatch h), (fun h => nomatch h), (fun h => nomatch h), (fun h => nomatch h)⟩
-  · intro _ j hj hjk hjd
+  · intro _ _ j hj hjk hjd
     exact hend ⟨j, hj, hjd.trans hday, hjk⟩
   · intro p hp
     by_cases hpd : p = decl

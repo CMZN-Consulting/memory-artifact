@@ -83,7 +83,7 @@ theorem ended_day_takes_no_calls (Γ : Ctx) (m : Memory) (c : ToolCall) (he : m.
     obtain ⟨-, hok⟩ := ToolCloseAux.append_inl_tc ha
     obtain ⟨-, -, -, -, -, -, -, -, -, hdays, -, -⟩ := hok
     obtain ⟨j, hj, hjd, hjk⟩ := he
-    exact (hdays rfl).2.2 (fun h => nomatch h) j hj hjk
+    exact (hdays rfl).2.2 (fun h => nomatch h) (fun h => nomatch h) j hj hjk
       (hjd.trans (ToolCloseAux.mkInfo_day_of_not_root _ _ _ _ rfl).symm)
 
 /-- T13, the time a call is charged, for a call that declares a bound, is within it: one for a lookup and the other tools, within

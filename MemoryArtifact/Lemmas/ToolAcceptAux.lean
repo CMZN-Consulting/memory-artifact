@@ -258,7 +258,7 @@ theorem ok_hip {Γ : Ctx} {m : Memory} (h : WellFormed Γ m) (d : Draft) (hw : d
     rw [hk] at hret
     simp [Kind.isReturn] at hret
   · intro _
-    refine ⟨hdy ▸ hday, fun hk => absurd hk hnight, fun _ j hj hjk hjd => hend ⟨j, hj, hjd.trans hdy, hjk⟩⟩
+    refine ⟨hdy ▸ hday, fun hk => absurd hk hnight, fun _ _ j hj hjk hjd => hend ⟨j, hj, hjd.trans hdy, hjk⟩⟩
 
 /-- An experience of the individual carrying today's task (`Ctx.expDraft`) passes every local check in the
 hippocampus: the pointers it names resolve to infos of the kinds its kind may point to (the first of the kind the first

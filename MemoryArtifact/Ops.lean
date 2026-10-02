@@ -30,11 +30,15 @@ def Op.run (Γ : Ctx) (m : Memory) : Op → Memory
 the memories a harness reaches are the narrower class `Derivable`. -/
 def replay (Γ : Ctx) (ops : List Op) : Memory := ops.foldl (Op.run Γ) Memory.empty
 
-/-- What a caller may offer to a log: the infos of the desk, the readers and the harness's own records, and the model's night
-and its nightly lines. Never a root or a group (only a start of day writes those), and never what a tool builds (a call, an
-experience of a tool, a return, a cursor, an info filed): those appear only through a tool call. -/
+/-- What a caller may offer to a log: the infos of the desk, the readers and the harness's own records, the model's night
+and its nightly lines, and the model's stop line. Never a root or a group (only a start of day writes those), and never what
+only a tool builds (a call, a return, a cursor, an info filed, and the experiences of the other tools): those appear only
+through a tool call. The stop is the one experience with two routes (amendment B, a candidate, see the README): the tool
+`stop`, declared, with its call and its return, and the stop line, which needs no declaration. Invariant 5 still makes the
+hippocampus the model's alone, so only a line under the model's name is taken. -/
 def Kind.offerableIn : LogId → Kind → Bool
-  | .hippocampus, .night | .hippocampus, .correction | .hippocampus, .consolidation | .hippocampus, .proposal => true
+  | .hippocampus, .night | .hippocampus, .correction | .hippocampus, .consolidation | .hippocampus, .proposal
+  | .hippocampus, .stop => true
   | .storePrivate, .page | .storePrivate, .dayRecord | .storePrivate, .notice | .storePrivate, .answer
   | .storePrivate, .framing | .storePrivate, .edge _ | .storePrivate, .task => true
   | .storeShared, .shelf _ | .storeShared, .heard | .storeShared, .say | .storeShared, .framing

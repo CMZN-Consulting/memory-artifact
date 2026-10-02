@@ -90,7 +90,7 @@ theorem contEdge_ok (Γ : Ctx) (m : Memory) (hm : WellFormed Γ m) (h pt : Hash)
     have hd : (mkInfo Γ m .hippocampus (contDraft Γ h pt)).day = m.today := by
       simp [mkInfo, contDraft, Kind.isRoot]
     refine ⟨by rw [hd]; exact hday, by simp [mkInfo, contDraft], ?_⟩
-    intro _ j hj hjk hjd
+    intro _ _ j hj hjk hjd
     exact hend ⟨j, hj, hjd.trans hd, hjk⟩
   · intro p hp
     simp only [mkInfo, contDraft, List.mem_cons, List.not_mem_nil, or_false] at hp
@@ -396,7 +396,7 @@ theorem aside_ok (Γ : Ctx) (m : Memory) (hm : WellFormed Γ m) (a : Data) (o : 
   · simp [LocRetire, hk]
   · intro _
     refine ⟨by rw [hd]; exact hday, by simp [hk], ?_⟩
-    intro _ j hj hjk hjd
+    intro _ _ j hj hjk hjd
     exact hend ⟨j, hj, hjd.trans hd, hjk⟩
   · intro p hp
     rw [hptr] at hp

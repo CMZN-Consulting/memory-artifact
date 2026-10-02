@@ -263,7 +263,8 @@ def toolStep (Γ : Ctx) (m : Memory) (c : ToolCall) : Memory :=
     | .inl m1 => toolEffect Γ m c m1 i.hash
     | .inr r => recordRefusal Γ m r.number
 
-/-- (59, 60) The day has ended: a hand-over or a stop was written on today (after it only the night may follow, invariant 10). -/
+/-- (59, 60) The day has ended: a hand-over or a stop was written on today, by the tool or as the individual's stop line
+(after it only the night or a stop may follow, invariant 10). -/
 def Memory.dayEnded (m : Memory) : Prop :=
   ∃ j ∈ m.hippocampus, j.day = m.today ∧ (j.kind = .handOver ∨ j.kind = .stop)
 

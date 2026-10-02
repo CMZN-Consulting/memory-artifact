@@ -77,7 +77,9 @@ inductive Kind where
   | question
   /-- (59) the day's last experience when the individual hands the day to the reader -/
   | handOver
-  /-- (60) the day's last experience when the individual stops -/
+  /-- (60) the day's last experience when the individual stops: appended by the tool `stop` after its call, or offered by
+      the individual as a line of its own (amendment B; then no call precedes it). A stop may also follow the end of a day,
+      as the night may, so a day can hold more than one. -/
   | stop
   /-- (35) the experience of a tool call: what the individual called, with what; a return points to it -/
   | call

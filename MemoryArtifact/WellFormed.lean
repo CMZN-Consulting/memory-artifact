@@ -321,17 +321,18 @@ def RetireOk (m : Memory) : Prop :=
   ∀ e ∈ m.all, e.kind = .edge .supersedes → ∀ b, e.dst = some b →
     (∃ x ∈ m.hippocampus, x.hash = b) → e ∈ m.hippocampus
 
-/-- Invariant 10 (second version, rulings 14 and the day's end, definitions 59 and 60): one night per day, no info of the
-hippocampus before the first root, and once a day has ended (a hand-over or a stop) nothing but the night follows it in the
-hippocampus. The clauses bind the hippocampus only: an info the model files into the shared store is not bound by them. A
-choice, listed
-in the README: the night is written as the day closes whatever ended it (design record section 13), so it may come after
-the hand-over or the stop, which are the last of the experiences the individual acts with. -/
+/-- Invariant 10 (second version, rulings 14 and the day's end, definitions 59 and 60, amendment B): one night per day, no
+info of the hippocampus before the first root, and once a day has ended (a hand-over or a stop) nothing but the night or a
+stop follows it in the hippocampus. The clauses bind the hippocampus only: an info the model files into the shared store is
+not bound by them. A choice, listed in the README: the night is written as the day closes whatever ended it (design record
+section 13), so it may come after the hand-over or the stop. Amendment B (a candidate, see the README) lets a stop follow
+too, so that the individual's stop line is taken after a hand-over; a stop after a stop is taken as well, and a day may hold
+more than one, because forbidding it would need a clause of its own and a second stop changes nothing the first did not. -/
 def DaysOk (m : Memory) : Prop :=
   (∀ i ∈ m.hippocampus, 1 ≤ i.day) ∧
   (∀ i ∈ m.hippocampus, ∀ j ∈ m.hippocampus, i.kind = .night → j.kind = .night → i.day = j.day → i.seq = j.seq) ∧
   (∀ i ∈ m.hippocampus, ∀ j ∈ m.hippocampus, (j.kind = .handOver ∨ j.kind = .stop) → j.day = i.day →
-    j.seq < i.seq → i.kind = .night)
+    j.seq < i.seq → i.kind = .night ∨ i.kind = .stop)
 
 /-- Invariant 11 (second version, ruling 13): every pointer resolves to an earlier info of a kind the catalogue names as a
 target of the pointing kind, and the first pointer of a call, an aside, a return, a cursor and the like is of the kind
@@ -423,10 +424,10 @@ def LocRetire (m : Memory) (l : LogId) (i : Info) : Prop :=
   i.kind = .edge .supersedes → ∀ b, i.dst = some b → (∃ x ∈ m.hippocampus, x.hash = b) → l = .hippocampus
 
 /-- Local 10: an experience is not before the first day; there is one night a day; and once the day has ended (a hand-over
-or a stop) only the night may follow. -/
+or a stop) only the night or a stop may follow (amendment B). -/
 def LocDays (m : Memory) (l : LogId) (i : Info) : Prop :=
   l = .hippocampus → 1 ≤ i.day ∧ (i.kind = .night → ∀ j ∈ m.hippocampus, ¬(j.kind = .night ∧ j.day = i.day)) ∧
-    (i.kind ≠ .night → ∀ j ∈ m.hippocampus, (j.kind = .handOver ∨ j.kind = .stop) → j.day ≠ i.day)
+    (i.kind ≠ .night → i.kind ≠ .stop → ∀ j ∈ m.hippocampus, (j.kind = .handOver ∨ j.kind = .stop) → j.day ≠ i.day)
 
 /-- Local 11: every pointer resolves to an info already in the memory, of a kind the catalogue names, and the first pointer is
 of the kind the first-pointer table names. -/

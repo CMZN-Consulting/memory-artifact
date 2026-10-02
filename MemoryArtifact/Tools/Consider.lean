@@ -31,7 +31,8 @@ theorem considerTraces_spec_false (Γ : Ctx) (call : Hash) (t : Pointer) (a : Da
     intro hok
     have hd := hok.2.2.2.2.2.2.2.2.2.1 rfl
     have hday := ConsiderAux.asideInfo_day Γ m a call
-    exact hd.2.2 (by simp [ConsiderAux.asideInfo_kind]) j hj hjk (hjd.trans hday.symm)
+    exact hd.2.2 (by simp [ConsiderAux.asideInfo_kind]) (by simp [ConsiderAux.asideInfo_kind]) j hj hjk
+      (hjd.trans hday.symm)
   have hnone : tryDraft Γ m .hippocampus (Γ.expDraft m .aside a [call]) = none := by
     unfold tryDraft append
     cases hr : refusalOf Γ m .hippocampus (mkInfo Γ m .hippocampus (Γ.expDraft m .aside a [call])) with
