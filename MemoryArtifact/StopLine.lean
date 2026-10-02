@@ -29,6 +29,11 @@ taken after a stop (day 2 of the witness, after the tool's stop); and after a st
 taken. The refusals (`stopLine_refusals`): before the first day (invariant 10); under another writer's name (invariant
 5); on a day of work without the task (invariant 13); and an offered stop whose data does not open with its arrival
 number (invariant 1).
+
+A limit of this amendment (audit F, finding F6, left open by the DA's ruling): on a day whose page names no task, the
+check does not forbid a stop that points to an earlier day's task; the line the harness drafts carries none
+(`Ctx.lineDraft` points to today's task, and on such a day there is none). `stopLine_limit` pins the limit, so that it
+cannot change unnoticed in either direction. Closing it is a change to invariant 11 left to the artifact's next version.
 -/
 
 namespace MemoryArtifact
@@ -184,6 +189,16 @@ theorem stopLine_refusals :
       refusalOf ctx dayFirst .hippocampus (mkInfo ctx dayFirst .hippocampus deskStop) = some .writers ∧
       refusalOf ctx memA .hippocampus (mkInfo ctx memA .hippocampus bareStop) = some .work ∧
       refusalOf ctx dayFirst .hippocampus unnumbered = some .appendOnly := by
+  decide +kernel
+
+/-- A stop of the individual's on day 2, a day whose page names no task, pointing to day 1's task. -/
+def strayStop : Draft := { writer := 1, kind := .stop, data := [7], pointers := [task.hash] }
+
+/-- The limit of this amendment, pinned (audit F, finding F6): on day 2, whose page names no task (the stop line drafted
+    there points to nothing), a stop that points to day 1's task passes every local check. -/
+theorem stopLine_limit :
+    (ctx.lineDraft mem₂ [7]).pointers = [] ∧
+      refusalOf ctx mem₂ .hippocampus (mkInfo ctx mem₂ .hippocampus strayStop) = none := by
   decide +kernel
 
 end Nonvac
