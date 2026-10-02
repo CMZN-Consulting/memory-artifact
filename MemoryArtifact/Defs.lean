@@ -195,7 +195,8 @@ inductive LogId where
   | hippocampus | storePrivate | storeShared | toolkit
   deriving DecidableEq, Repr
 
-/-- The four logs, as a list, so that a statement about all of them is decidable. -/
+/-- The four logs, each once (`LogId.nodup_all`, `LogId.length_all`), as a list, so that a statement about all of them
+    is decidable. -/
 def LogId.all : List LogId := [.hippocampus, .storePrivate, .storeShared, .toolkit]
 
 /-- (38) Memory: a model's hippocampus (32), store (33, private part and shared part) and toolkit (37). -/

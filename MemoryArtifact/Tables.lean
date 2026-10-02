@@ -28,7 +28,8 @@ The other definitions the amendment rests on (`numbered`, `carriesTask`, `arity`
 `LocDays`) are held by proofs that break when they change, not by a statement of their own.
 
 `Kind.all` lists every kind (`Kind.mem_all`), none twice (`Kind.nodup_all`), 43 in all (`Kind.length_all`), and
-`LogId.all` every log (`PushBasicAux.logId_mem_all`), so that a statement about every kind and every log is decidable.
+`LogId.all` every log (`PushBasicAux.logId_mem_all`), none twice (`LogId.nodup_all`), 4 in all (`LogId.length_all`), so
+that a statement about every kind and every log is decidable.
 -/
 
 namespace MemoryArtifact
@@ -51,6 +52,12 @@ theorem Kind.nodup_all : Kind.all.Nodup := by decide +kernel
 
 /-- `Kind.all` lists 43 kinds. -/
 theorem Kind.length_all : Kind.all.length = 43 := by decide +kernel
+
+/-- `LogId.all` lists no log twice. -/
+theorem LogId.nodup_all : LogId.all.Nodup := by decide +kernel
+
+/-- `LogId.all` lists 4 logs. -/
+theorem LogId.length_all : LogId.all.length = 4 := by decide +kernel
 
 /-- What a caller may offer to each log, written out: the table `Kind.offerableIn` must agree with. -/
 def Kind.offerableTable : LogId → List Kind

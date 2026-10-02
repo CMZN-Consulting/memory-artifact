@@ -207,12 +207,14 @@ def strayNight : Draft := { writer := 1, kind := .night, data := [8], pointers :
     nothing), a stop that points to day 1's task, which is in the store too, passes every local check, and so does a
     night with the same pointer: the limit is not the stop's alone. -/
 theorem stopLine_limit :
-    mem₂.today = 2 ∧ page2 ∈ mem₂.log .storePrivate ∧ page2.day = 2 ∧ page2.pointers = [] ∧
-      task ∈ mem₂.log .storePrivate ∧ task.day = 1 ∧ strayStop.pointers = [task.hash] ∧
+    (page2.kind = .page ∧ task.kind = .task) ∧
+      mem₂.today = 2 ∧ page2 ∈ mem₂.log .storePrivate ∧ page2.day = 2 ∧ page2.pointers = [] ∧
+      task ∈ mem₂.log .storePrivate ∧ task.day = 1 ∧
+      strayStop.pointers = [task.hash] ∧ strayNight.pointers = [task.hash] ∧
       (ctx.lineDraft mem₂ [7]).pointers = [] ∧
       refusalOf ctx mem₂ .hippocampus (mkInfo ctx mem₂ .hippocampus strayStop) = none ∧
-      refusalOf ctx mem₂ .hippocampus (mkInfo ctx mem₂ .hippocampus strayNight) = none := by
-  decide +kernel
+      refusalOf ctx mem₂ .hippocampus (mkInfo ctx mem₂ .hippocampus strayNight) = none :=
+  ⟨⟨rfl, rfl⟩, by decide +kernel⟩
 
 end Nonvac
 
