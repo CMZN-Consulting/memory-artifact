@@ -20,7 +20,8 @@ statement about every kind and every log is decidable.
 
 namespace MemoryArtifact
 
-/-- Every kind, each once: the 26 kinds without an argument and the six edge, six return and four shelf kinds. -/
+/-- Every kind, each once (`Kind.nodup_all`, `Kind.length_all`): the 27 kinds without an argument and the six edge, six
+return and four shelf kinds, 43 in all. -/
 def Kind.all : List Kind :=
   [.night, .aside, .keep, .edge .same, .edge .continues, .edge .corrects, .edge .contradicts, .edge .supersedes,
    .edge .cites, .correction, .consolidation, .proposal, .root, .group, .page, .dayRecord, .ret .infos, .ret .span,
@@ -31,6 +32,12 @@ def Kind.all : List Kind :=
 /-- `Kind.all` holds every kind. -/
 theorem Kind.mem_all (k : Kind) : k ∈ Kind.all := by
   cases k <;> (try (rename_i x; cases x)) <;> decide
+
+/-- `Kind.all` lists no kind twice. -/
+theorem Kind.nodup_all : Kind.all.Nodup := by decide +kernel
+
+/-- `Kind.all` lists 43 kinds. -/
+theorem Kind.length_all : Kind.all.length = 43 := by decide +kernel
 
 /-- What a caller may offer to each log, written out: the table `Kind.offerableIn` must agree with. -/
 def Kind.offerableTable : LogId → List Kind
@@ -49,6 +56,41 @@ table lists it. In particular the hippocampus takes an offered night, correction
 other kind (no hand-over, no aside, no call), and no log but the hippocampus takes an offered stop. -/
 theorem offerableIn_table (l : LogId) (k : Kind) : Kind.offerableIn l k = true ↔ k ∈ Kind.offerableTable l := by
   have h : ∀ l ∈ LogId.all, ∀ k ∈ Kind.all, (Kind.offerableIn l k = true ↔ k ∈ Kind.offerableTable l) := by
+    decide +kernel
+  exact h l (PushBasicAux.logId_mem_all l) k (Kind.mem_all k)
+
+/-- Which kinds each log may hold, written out: the table `Kind.allowedIn` must agree with. -/
+def Kind.allowedTable : LogId → List Kind
+  | .hippocampus =>
+    [.night, .aside, .keep, .edge .same, .edge .continues, .edge .corrects, .edge .contradicts, .edge .supersedes,
+     .edge .cites, .correction, .consolidation, .proposal, .question, .handOver, .stop, .call, .recipe, .given,
+     .outcome]
+  | .storePrivate =>
+    [.edge .same, .edge .continues, .edge .corrects, .edge .contradicts, .edge .supersedes, .edge .cites, .root,
+     .group, .page, .dayRecord, .ret .infos, .ret .span, .ret .nothing, .ret .refusal, .ret .digest,
+     .ret .acknowledgement, .cursor, .notice, .answer, .framing, .task]
+  | .storeShared =>
+    [.edge .supersedes, .notice, .framing, .shelf .passage, .shelf .way, .shelf .readersPage, .shelf .recipes, .heard,
+     .say, .filed, .policy]
+  | .toolkit => [.edge .supersedes, .tool]
+
+/-- The whole of `Kind.allowedIn`: for every log and every kind, the log may hold the kind exactly when the table lists
+it. In particular a stop stands in the hippocampus and in no other log. -/
+theorem allowedIn_table (l : LogId) (k : Kind) : Kind.allowedIn l k = true ↔ k ∈ Kind.allowedTable l := by
+  have h : ∀ l ∈ LogId.all, ∀ k ∈ Kind.all, (Kind.allowedIn l k = true ↔ k ∈ Kind.allowedTable l) := by
+    decide +kernel
+  exact h l (PushBasicAux.logId_mem_all l) k (Kind.mem_all k)
+
+/-- Where the offer table is wider than the allowed one, exactly: a caller may offer to the shared part of the store and
+to the toolkit every edge, and those logs hold only a supersedes edge, so the other five are refused on arrival (local
+check 3, `LocEnvelope`). Everywhere else what may be offered may be held. -/
+theorem offerable_not_allowed (l : LogId) (k : Kind) :
+    (Kind.offerableIn l k = true ∧ Kind.allowedIn l k = false) ↔
+      ((l = .storeShared ∨ l = .toolkit) ∧
+        k ∈ [.edge .same, .edge .continues, .edge .corrects, .edge .contradicts, .edge .cites]) := by
+  have h : ∀ l ∈ LogId.all, ∀ k ∈ Kind.all, ((Kind.offerableIn l k = true ∧ Kind.allowedIn l k = false) ↔
+      ((l = .storeShared ∨ l = .toolkit) ∧
+        k ∈ [.edge .same, .edge .continues, .edge .corrects, .edge .contradicts, .edge .cites])) := by
     decide +kernel
   exact h l (PushBasicAux.logId_mem_all l) k (Kind.mem_all k)
 

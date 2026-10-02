@@ -191,14 +191,22 @@ theorem stopLine_refusals :
       refusalOf ctx dayFirst .hippocampus unnumbered = some .appendOnly := by
   decide +kernel
 
-/-- A stop of the individual's on day 2, a day whose page names no task, pointing to day 1's task. -/
+/-- A stop of the individual's pointing to the witness's `task`, day 1's; `stopLine_limit` offers it on day 2. -/
 def strayStop : Draft := { writer := 1, kind := .stop, data := [7], pointers := [task.hash] }
 
-/-- The limit of this amendment, pinned (audit F, finding F6): on day 2, whose page names no task (the stop line drafted
-    there points to nothing), a stop that points to day 1's task passes every local check. -/
+/-- A night of the individual's pointing to the witness's `task`, day 1's; `stopLine_limit` offers it on day 2 too. -/
+def strayNight : Draft := { writer := 1, kind := .night, data := [8], pointers := [task.hash] }
+
+/-- The limit of this amendment, pinned on the witness (audit F, finding F6), one instance and not the general sentence:
+    on day 2 of the witness, whose page is in the store and names no task (so the stop line drafted there points to
+    nothing), a stop that points to day 1's task, which is in the store too, passes every local check, and so does a
+    night with the same pointer: the limit is not the stop's alone. -/
 theorem stopLine_limit :
-    (ctx.lineDraft mem₂ [7]).pointers = [] ∧
-      refusalOf ctx mem₂ .hippocampus (mkInfo ctx mem₂ .hippocampus strayStop) = none := by
+    mem₂.today = 2 ∧ page2 ∈ mem₂.log .storePrivate ∧ page2.day = 2 ∧ page2.pointers = [] ∧
+      task ∈ mem₂.log .storePrivate ∧ task.day = 1 ∧ strayStop.pointers = [task.hash] ∧
+      (ctx.lineDraft mem₂ [7]).pointers = [] ∧
+      refusalOf ctx mem₂ .hippocampus (mkInfo ctx mem₂ .hippocampus strayStop) = none ∧
+      refusalOf ctx mem₂ .hippocampus (mkInfo ctx mem₂ .hippocampus strayNight) = none := by
   decide +kernel
 
 end Nonvac
