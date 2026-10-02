@@ -24,16 +24,21 @@ What is proved, under the hypotheses each states:
 * `stopLine_derivable`: the harness reaches the memory after it from any memory it reaches.
 
 The witnesses, each decided by the kernel on the context of `Nonvacuous.lean` (`stopLine_witnesses`): the line taken on
-a day with no tool declared; taken after a hand-over (day 1 of the witness, a day of work, so it points to the task);
-taken after a stop (day 2 of the witness, after the tool's stop); and after a stop line, a call refused and the night still
-taken. The refusals (`stopLine_refusals`): before the first day (invariant 10); under another writer's name (invariant
-5); on a day of work without the task (invariant 13); and an offered stop whose data does not open with its arrival
-number (invariant 1).
+a first day on which the tool `stop` is not declared; taken after a hand-over (day 1 of the witness, a day of work, so it
+points to the task); taken after a stop (day 2 of the witness, after the tool's stop); and after a stop line, a call of
+`recall` after which the hippocampus has not grown, and the night still taken. The refusals (`stopLine_refusals`): before
+the first day (`days`); under another writer's name (`writers`); on a day of work without the task (`work`); and an offered
+stop whose data does not open with its arrival number (`appendOnly`), each by the name the statement gives the refusal.
 
 A limit of this amendment (audit F, finding F6, left open by the DA's ruling): on a day whose page names no task, the
 check does not forbid a stop that points to an earlier day's task; the line the harness drafts carries none
-(`Ctx.lineDraft` points to today's task, and on such a day there is none). `stopLine_limit` pins the limit, so that it
-cannot change unnoticed in either direction. Closing it is a change to invariant 11 left to the artifact's next version.
+(`Ctx.lineDraft` points to today's task, and on such a day there is none). `stopLine_limit` pins one instance of it on the
+witness, not the general sentence: its statement carries the day, the page that names no task and the earlier task, so
+that this instance cannot change unnoticed in either direction. The limit is not the stop's alone: by `LocWork`, which asks
+that the day's task be among an info's pointers and nothing of its others, and `LocTargets`, which names kinds and not
+days, every kind whose row lists the task may point to an earlier day's task, and so it was before amendment B; the
+statement takes a night with the same pointer as its one further instance. The stray stop passes invariants 11 and 13 alike; which of
+them takes the clause that closes it is not decided, and is left to the artifact's next version.
 -/
 
 namespace MemoryArtifact

@@ -75,8 +75,8 @@ def Kind.carriesTask : Kind → Bool
   | _ => false
 
 /-- (design record section 15, ruling 1) A kind an entry can have: every kind but an edge, a keep, the harness's own
-(root, group, page, day record, return, cursor) and the bookkeeping of a tool call (the call, the recipe named, the data
-given, the outcome): a choice, listed in the README (ruling 1 says "every kind but edge and keep"; the four kinds of a
+(root, group, page, day record, return, cursor), the bookkeeping of a tool call (the call, the recipe named, the data
+given, the outcome) and the desk's policy: a choice, listed in the README (ruling 1 says "every kind but edge and keep"; the four kinds of a
 call are this model's own, and were they entries every call would be a head and knowledge). Entries are what threads
 and heads run over. -/
 def Kind.isEntryKind : Kind → Bool
