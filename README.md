@@ -40,6 +40,7 @@ lake build
 | `MemoryArtifact/Witnesses.lean`   | the literal reading of Theorem 2 is false, the coverage hypothesis is satisfiable and needed (proved)                                      |
 | `MemoryArtifact/Nonvacuous.lean`  | the theorems are not vacuous: a concrete memory that uses all ten tools, a work day, a recreation day, a trace, a two-day thread           |
 | `MemoryArtifact/StopLine.lean`    | amendment B (a candidate): the individual's stop line is taken, what taking it does, its witnesses and its refusals                        |
+| `MemoryArtifact/Tables.lean`      | the two tables amendment B edits, decided whole: what a caller may offer to each log, and what each kind may point to                      |
 | `MemoryArtifact/Lemmas/`          | the proofs' lemmas: pushing an info, chains of pushes, breadth-first search, closures, threads, chunks, grouping, start of day, tools      |
 | `MemoryArtifact/Epistemic.lean`   | a vocabulary added on 2026-09-27: twelve definitions, tied to no invariant (see "The additions of 2026-09-27")                             |
 | `Scan.lean`                       | a script at the root, outside the library: it scans every constant for an axiom beyond Lean's three and fails if it finds one              |
@@ -438,6 +439,8 @@ What it carries of its own (`MemoryArtifact/StopLine.lean`):
 - `Nonvac.stopLine_witnesses`, decided by the kernel on the witness of `Nonvacuous.lean`: the line taken on a first day with no tool declared; taken after day 1's hand-over (a day of work: it points to the task); taken after day 2's call of the tool `stop` (day 2 then holds two stops); and on day 2, open, the line taken, a call of `recall` after it refused, and the night still taken. Each run is one the harness performs.
 - `Nonvac.stopLine_refusals`, decided by the kernel: a stop offered before the first day (invariant 10), under the desk's name (invariant 5), on a day of work without the task (invariant 13), and with data that does not open with its arrival number (invariant 1) is refused, by the first invariant named.
 - Without `(hippocampus, stop)` in `Kind.offerableIn` this file does not build.
+
+What pins the two tables (`MemoryArtifact/Tables.lean`, after audit F, finding F1): `offerableIn_table` decides the whole of `Kind.offerableIn`, for every log and every kind, against a table written out there, and `targetOk_table` decides the whole of `Kind.targetOk` the same way. So a change to either definition fails the build unless the table changes with it: an offered hand-over, an offered aside, a stop offered to the shared store, or a stop that points to any kind but a task. `Kind.all` lists the 43 kinds (`Kind.mem_all`).
 
 A note on naming. The design record calls "the bare line stop:" the line by which the individual calls the tool `stop` (the pass notes on tool lines). The stop line of amendment B is the memory's side of the same act when no tool call is possible: an offer of a `stop` info, with no call and no return. Which of the two the harness performs for a given line of the individual's is the harness's choice and outside this model; a reader of the memory tells the two apart by the call and the return that stand before the tool's stop and not before the line.
 

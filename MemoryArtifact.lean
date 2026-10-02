@@ -22,3 +22,4 @@ import MemoryArtifact.Lemmas.Chain
 import MemoryArtifact.Lemmas.PushCex
 import MemoryArtifact.Tools.Effects
 import MemoryArtifact.StopLine
+import MemoryArtifact.Tables

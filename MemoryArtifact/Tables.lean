@@ -1,0 +1,123 @@
+import MemoryArtifact.Ops
+import MemoryArtifact.Lemmas.PushBasic
+
+/-!
+# The two tables amendment B edits, decided whole
+
+Amendment B adds one entry to `Kind.offerableIn` (the hippocampus takes an offered stop) and rests on the stop's row of
+`Kind.targetOk` (a stop points only to a task). The audit of the candidate (audit F, finding F1) found that nothing pinned
+either table beyond the entry the amendment adds: a definition that admitted an offered hand-over, an offered aside, a stop
+offered to the shared store, or a stop pointing to any kind built clean. The two theorems below decide each table whole,
+for every log and every kind, against a table written out here: a change to either definition that this file does not
+make too fails the build.
+
+`Kind.all` lists every kind once (`Kind.mem_all`), and `LogId.all` every log (`PushBasicAux.logId_mem_all`), so that a
+statement about every kind and every log is decidable.
+-/
+
+namespace MemoryArtifact
+
+/-- Every kind, each once: the 26 kinds without an argument and the six edge, six return and four shelf kinds. -/
+def Kind.all : List Kind :=
+  [.night, .aside, .keep, .edge .same, .edge .continues, .edge .corrects, .edge .contradicts, .edge .supersedes,
+   .edge .cites, .correction, .consolidation, .proposal, .root, .group, .page, .dayRecord, .ret .infos, .ret .span,
+   .ret .nothing, .ret .refusal, .ret .digest, .ret .acknowledgement, .cursor, .notice, .answer, .framing,
+   .shelf .passage, .shelf .way, .shelf .readersPage, .shelf .recipes, .heard, .tool, .question, .handOver, .stop,
+   .call, .recipe, .given, .outcome, .task, .say, .filed, .policy]
+
+/-- `Kind.all` holds every kind. -/
+theorem Kind.mem_all (k : Kind) : k ∈ Kind.all := by
+  cases k <;> (try (rename_i x; cases x)) <;> decide
+
+/-- What a caller may offer to each log, written out: the table `Kind.offerableIn` must agree with. -/
+def Kind.offerableTable : LogId → List Kind
+  | .hippocampus => [.night, .correction, .consolidation, .proposal, .stop]
+  | .storePrivate =>
+    [.edge .same, .edge .continues, .edge .corrects, .edge .contradicts, .edge .supersedes, .edge .cites, .page,
+     .dayRecord, .notice, .answer, .framing, .task]
+  | .storeShared =>
+    [.edge .same, .edge .continues, .edge .corrects, .edge .contradicts, .edge .supersedes, .edge .cites, .notice,
+     .framing, .shelf .passage, .shelf .way, .shelf .readersPage, .shelf .recipes, .heard, .say, .policy]
+  | .toolkit =>
+    [.edge .same, .edge .continues, .edge .corrects, .edge .contradicts, .edge .supersedes, .edge .cites, .tool]
+
+/-- The whole of `Kind.offerableIn`: for every log and every kind, a caller may offer the kind to the log exactly when the
+table lists it. In particular the hippocampus takes an offered night, correction, consolidation, proposal and stop and no
+other kind (no hand-over, no aside, no call), and no log but the hippocampus takes an offered stop. -/
+theorem offerableIn_table (l : LogId) (k : Kind) : Kind.offerableIn l k = true ↔ k ∈ Kind.offerableTable l := by
+  have h : ∀ l ∈ LogId.all, ∀ k ∈ Kind.all, (Kind.offerableIn l k = true ↔ k ∈ Kind.offerableTable l) := by
+    decide +kernel
+  exact h l (PushBasicAux.logId_mem_all l) k (Kind.mem_all k)
+
+/-- The kinds an info of each kind may point to, written out: the table `Kind.targetOk` must agree with. `Kind.all` stands
+for a kind that may point to any kind. -/
+def Kind.targetTable : Kind → List Kind
+  | .night => [.task]
+  | .aside => [.aside, .call, .task]
+  | .keep => Kind.all
+  | .edge .same => Kind.all
+  | .edge .continues =>
+    [.night, .aside, .correction, .consolidation, .proposal, .notice, .answer, .framing, .shelf .passage,
+     .shelf .way, .shelf .readersPage, .shelf .recipes, .heard, .tool, .question, .handOver, .stop, .task, .say,
+     .filed]
+  | .edge .corrects =>
+    [.night, .aside, .correction, .consolidation, .proposal, .notice, .answer, .framing, .shelf .passage,
+     .shelf .way, .shelf .readersPage, .shelf .recipes, .heard, .tool, .question, .handOver, .stop, .task, .say,
+     .filed]
+  | .edge .contradicts => Kind.all
+  | .edge .supersedes => Kind.all
+  | .edge .cites => Kind.all
+  | .correction =>
+    [.night, .aside, .correction, .consolidation, .proposal, .notice, .answer, .framing, .shelf .passage,
+     .shelf .way, .shelf .readersPage, .shelf .recipes, .heard, .tool, .question, .handOver, .stop, .task, .say,
+     .filed]
+  | .consolidation => [.night, .aside, .task]
+  | .proposal => [.notice, .framing, .shelf .passage, .shelf .way, .shelf .readersPage, .shelf .recipes, .task]
+  | .root =>
+    [.night, .aside, .keep, .correction, .consolidation, .proposal, .root, .group, .notice, .answer, .framing,
+     .shelf .passage, .shelf .way, .shelf .readersPage, .shelf .recipes, .heard, .tool, .question, .handOver, .stop,
+     .task, .say, .filed]
+  | .group =>
+    [.night, .aside, .correction, .consolidation, .proposal, .group, .notice, .answer, .framing, .shelf .passage,
+     .shelf .way, .shelf .readersPage, .shelf .recipes, .heard, .tool, .question, .handOver, .stop, .task, .say,
+     .filed]
+  | .page =>
+    [.notice, .answer, .framing, .shelf .passage, .shelf .way, .shelf .readersPage, .shelf .recipes, .heard, .task,
+     .say]
+  | .dayRecord => [.night, .root, .page]
+  | .ret .infos => Kind.all
+  | .ret .span => Kind.all
+  | .ret .nothing => Kind.all
+  | .ret .refusal => Kind.all
+  | .ret .digest => Kind.all
+  | .ret .acknowledgement => Kind.all
+  | .cursor => [.ret .infos, .ret .span, .ret .nothing, .ret .refusal, .ret .digest, .ret .acknowledgement]
+  | .notice => [.notice]
+  | .answer => [.night, .question, .handOver, .call]
+  | .framing => [.framing]
+  | .shelf .passage => Kind.all
+  | .shelf .way => Kind.all
+  | .shelf .readersPage => Kind.all
+  | .shelf .recipes => Kind.all
+  | .heard => [.say]
+  | .tool => [.tool]
+  | .question => [.task]
+  | .handOver => [.task]
+  | .stop => [.task]
+  | .call => Kind.all
+  | .recipe => [.call, .task]
+  | .given => [.recipe, .task]
+  | .outcome => [.ret .infos, .ret .span, .ret .nothing, .ret .refusal, .ret .digest, .ret .acknowledgement, .task]
+  | .task => [.shelf .passage, .shelf .way, .shelf .readersPage, .shelf .recipes]
+  | .say => []
+  | .filed => Kind.all
+  | .policy => [.policy]
+
+/-- The whole of `Kind.targetOk`: for every kind and every target kind, an info of the first may point to an info of the
+second exactly when the table lists it. In particular a stop points only to a task. -/
+theorem targetOk_table (k t : Kind) : Kind.targetOk k t = true ↔ t ∈ Kind.targetTable k := by
+  have h : ∀ k ∈ Kind.all, ∀ t ∈ Kind.all, (Kind.targetOk k t = true ↔ t ∈ Kind.targetTable k) := by
+    decide +kernel
+  exact h k (Kind.mem_all k) t (Kind.mem_all t)
+
+end MemoryArtifact
