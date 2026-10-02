@@ -39,6 +39,7 @@ lake build
 | `MemoryArtifact/Conformance.lean` | what a log pins: `log_hashes_commit`, `roots_prescribed`, `replay_log_derivable`, `lookup_replayable`; the counterexamples                 |
 | `MemoryArtifact/Witnesses.lean`   | the literal reading of Theorem 2 is false, the coverage hypothesis is satisfiable and needed (proved)                                      |
 | `MemoryArtifact/Nonvacuous.lean`  | the theorems are not vacuous: a concrete memory that uses all ten tools, a work day, a recreation day, a trace, a two-day thread           |
+| `MemoryArtifact/StopLine.lean`    | amendment B (a candidate): the individual's stop line is taken, what taking it does, its witnesses and its refusals                        |
 | `MemoryArtifact/Lemmas/`          | the proofs' lemmas: pushing an info, chains of pushes, breadth-first search, closures, threads, chunks, grouping, start of day, tools      |
 | `MemoryArtifact/Epistemic.lean`   | a vocabulary added on 2026-09-27: twelve definitions, tied to no invariant (see "The additions of 2026-09-27")                             |
 | `Scan.lean`                       | a script at the root, outside the library: it scans every constant for an axiom beyond Lean's three and fails if it finds one              |
@@ -429,6 +430,16 @@ What was decided, and why.
 - A stop line is a `stop` info like the tool's: numbered (its data opens with its arrival number), pointing only to a task (`Kind.targetOk`), with no first-pointer constraint (`Kind.firstOk`), and on a day of work it carries the task (invariant 13). No call precedes it, so a `stop` info no longer implies an accepted call of the tool; no theorem of this model stated that it did.
 - A stop line ends the day as the tool's stop does: `Memory.dayEnded` reads the kind.
 - More than one stop may stand on a day: a stop may follow a stop. Forbidding it would need a clause of its own, and a second stop changes nothing the first did not.
+
+What it carries of its own (`MemoryArtifact/StopLine.lean`):
+
+- `ok_stopLine`: on a well-formed memory on which a day has been lived, the individual's stop line (`Ctx.lineDraft`: writer the individual, kind `stop`, today's task as its pointers) passes every local check in the hippocampus, with the tool `stop` declared or not, before or after the end of the day.
+- `stopLine_effect`: taking it appends exactly that info to the hippocampus, and the day has then ended. `stopLine_derivable`: the harness reaches the memory after it from every memory it reaches.
+- `Nonvac.stopLine_witnesses`, decided by the kernel on the witness of `Nonvacuous.lean`: the line taken on a first day with no tool declared; taken after day 1's hand-over (a day of work: it points to the task); taken after day 2's call of the tool `stop` (day 2 then holds two stops); and on day 2, open, the line taken, a call of `recall` after it refused, and the night still taken. Each run is one the harness performs.
+- `Nonvac.stopLine_refusals`, decided by the kernel: a stop offered before the first day (invariant 10), under the desk's name (invariant 5), on a day of work without the task (invariant 13), and with data that does not open with its arrival number (invariant 1) is refused, by the first invariant named.
+- Without `(hippocampus, stop)` in `Kind.offerableIn` this file does not build.
+
+A note on naming. The design record calls "the bare line stop:" the line by which the individual calls the tool `stop` (the pass notes on tool lines). The stop line of amendment B is the memory's side of the same act when no tool call is possible: an offer of a `stop` info, with no call and no return. Which of the two the harness performs for a given line of the individual's is the harness's choice and outside this model; a reader of the memory tells the two apart by the call and the return that stand before the tool's stop and not before the line.
 
 What it amends in the records: definition 60 (the stop, now also the individual's line, and not only the day's last experience); definitions 59 and 60 read with section 13 as finding 19 does (after the end of a day the night or a stop may follow); ruling 14 (invariant 10); section 13's append catalogue (who may append a stop, and that the hippocampus takes it offered); and section 14's closed list of tools, which no longer holds every route to a stop.
 

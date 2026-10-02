@@ -80,7 +80,9 @@ inductive Kind where
   | handOver
   /-- (60) the experience that ends the day when the individual stops: appended by the tool `stop` after its call, or offered by
       the individual as a line of its own (amendment B; then no call precedes it). A stop may also follow the end of a day,
-      as the night may, so a day can hold more than one. -/
+      as the night may, so a day can hold more than one. The design record's "bare line stop:" is the line by which the
+      individual calls the tool; the stop line is the memory's side of the same act when no call is possible, and which
+      of the two the harness performs for a given line is outside this model. -/
   | stop
   /-- (35) the experience of a tool call: what the individual called, with what; a return points to it -/
   | call
