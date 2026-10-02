@@ -56,7 +56,8 @@ def Kind.harnessOnly : Kind → Bool
   | _ => false
 
 /-- The kinds whose data opens with their own arrival number: everything the harness or a tool builds, and also what a
-caller offers of these kinds (a correction, a consolidation, a proposal, a day record, an edge), which must open with the
+caller offers of these kinds (a correction, a consolidation, a proposal, a stop line under amendment B, a day record, an
+edge), which must open with the
 memory's count or is refused under invariant 1. So two infos of a numbered kind never have the same content, and so never
 the same hash (ruling 10: the hash covers data and envelope, not the arrival number). Not numbered: a night (one a day), a
 root and a page (one a day), and the kinds the desk and the readers place (a notice, a framing, a shelf item, an answer, a

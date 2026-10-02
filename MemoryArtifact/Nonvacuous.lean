@@ -24,8 +24,8 @@ The operations, 36 of them, leave 85 infos:
   is 8 tokens, a page of 7 is served and its cursor says so), then `reach` of the span that starts where that cursor stopped
   (the infos); `recall` of the page by its pointer (nothing: the page is not in the hippocampus); `file` (the result of the
   day); `act` of recipe 5; `act` of recipe 99, which the list does not name (a refusal by the tool); `keeping`; `relate`:
-  `a2` supersedes `a1`; `hand`, which ends the day; the night, which points to the task (the one experience a day may hold
-  after its end); `stop`, whose call the harness refuses (the day has ended: a refusal by the harness). The heads are the
+  `a2` supersedes `a1`; `hand`, which ends the day; the night, which points to the task (an experience a day may hold after
+  its end, as a stop may under amendment B); `stop`, whose call the harness refuses (the day has ended: a refusal by the harness). The heads are the
   question, `a2`, the hand-over and the night;
 * day 2, a day of recreation: the start of day groups the four heads under two group nodes; the page, with no task;
   `consider` of `a2`, one link `a3` that continues `a2` across the two days; `file`, made from `a2`; the desk writes the
@@ -274,7 +274,7 @@ and not all of it, and a list of operations whose replay `m` the harness reaches
    says the two returns differ; taken alone it does not say that the policy is the cause, since the log grew between them);
 6. there is a day of work: a page whose head is a task, on which a tool was called, every experience of the day and the info filed
    on it pointing to the task, and a result, the info filed last that points to the task; and a night written after a hand-over
-   of its day (the one experience a day may hold after its end);
+   of its day (an experience a day may hold after its end, as a stop may under amendment B);
 7. there is a day of recreation: a page with no task, on which a tool was called and something was filed, and an experience that
    points to nothing;
 8. there is a sub-frame that opens a sub-frame: an aside opened by a consider's call, and an aside opened by that aside;
